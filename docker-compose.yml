@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  partita-bot:
+    image: ghcr.io/lucanori/partita-bot:latest
+    container_name: partita-bot
+    restart: unless-stopped
+    ports:
+      - "${ADMIN_PORT:-5000}:5000"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env

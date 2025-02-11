@@ -12,15 +12,15 @@ A Telegram bot that notifies users about soccer matches in their city. The bot s
 
 ## Prerequisites
 
-- Python 3.11+
-- Docker
+- Python 3.11+ (for local development)
+- Docker and Docker Compose (for containerized deployment)
 - A Telegram Bot Token (get it from [@BotFather](https://t.me/botfather))
 
 ## Local Development
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/partita-bot.git
+git clone https://github.com/LucaNori/partita-bot.git
 cd partita-bot
 ```
 
@@ -55,11 +55,43 @@ python bot.py
 
 ## Docker Deployment
 
-### Building Locally
+### Using Docker Compose (Recommended)
 
-1. Build the Docker image:
+1. Clone the repository:
 ```bash
-docker build -t partita-bot .
+git clone https://github.com/LucaNori/partita-bot.git
+cd partita-bot
+```
+
+2. Create and configure the .env file:
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+3. Pull and run using Docker Compose:
+```bash
+docker compose pull  # Pull the latest image
+docker compose up -d  # Start the container in detached mode
+```
+
+To view logs:
+```bash
+docker compose logs -f
+```
+
+To stop the bot:
+```bash
+docker compose down
+```
+
+### Manual Docker Deployment
+
+If you prefer to run without Docker Compose:
+
+1. Pull the image:
+```bash
+docker pull ghcr.io/lucanori/partita-bot:latest
 ```
 
 2. Run the container:
@@ -69,24 +101,8 @@ docker run -d \
   -p 5000:5000 \
   -v $(pwd)/data:/app/data \
   --env-file .env \
-  partita-bot
-```
-
-### Using GHCR (GitHub Container Registry)
-
-1. Create a new release on GitHub with a semantic version (e.g., v1.0.0)
-
-2. The GitHub Action will automatically build and push the image to GHCR
-
-3. Pull and run the container:
-```bash
-docker pull ghcr.io/yourusername/partita-bot:latest
-docker run -d \
-  --name partita-bot \
-  -p 5000:5000 \
-  -v $(pwd)/data:/app/data \
-  --env-file .env \
-  ghcr.io/yourusername/partita-bot:latest
+  --restart unless-stopped \
+  ghcr.io/lucanori/partita-bot:latest
 ```
 
 ## Bot Commands
@@ -113,9 +129,14 @@ The repository includes a GitHub Actions workflow that:
 2. Tags it with the release version and 'latest'
 3. Pushes it to GitHub Container Registry (GHCR)
 
-To use GHCR:
-1. Generate a Personal Access Token (PAT) with `read:packages` and `write:packages` permissions
-2. Add the PAT as a repository secret named `GHCR_TOKEN`
+To create a new release:
+1. Create and push a new tag:
+```bash
+git tag v1.0.0  # Replace with your version
+git push origin v1.0.0
+```
+
+The workflow will automatically build and publish the Docker image to GHCR.
 
 ## Contributing
 
