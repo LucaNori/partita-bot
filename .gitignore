@@ -30,6 +30,6 @@ venv/
 .vscode/
 *.swp
 *.swo
-fetcher_test.json
-test_api.py
 tasks.md
+/test/data
+/data
