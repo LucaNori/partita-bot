@@ -1,0 +1,56 @@
+stadiums:
+  milano:
+    - Giuseppe Meazza
+    - San Siro
+  roma:
+    - Stadio Olimpico
+  napoli:
+    - Diego Armando Maradona
+    - Stadio Diego Armando Maradona
+  torino:
+    - Allianz Stadium
+    - Olimpico Grande Torino
+  firenze:
+    - Artemio Franchi
+  genova:
+    - Luigi Ferraris
+  bologna:
+    - Renato Dall'Ara
+  verona:
+    - Marcantonio Bentegodi
+  bergamo:
+    - Gewiss Stadium
+  udine:
+    - Bluenergy Stadium
+    - Dacia Arena
+  sassuolo:
+    - MAPEI Stadium - Città del Tricolore
+  empoli:
+    - Carlo Castellani
+  lecce:
+    - Via del Mare
+  salerno:
+    - Arechi
+  frosinone:
+    - Benito Stirpe
+  cagliari:
+    - Unipol Domus
+
+# Area IDs for each city (all Italian cities use 2114 for Serie A)
+area_ids:
+  milano: 2114
+  roma: 2114
+  napoli: 2114
+  torino: 2114
+  firenze: 2114
+  genova: 2114
+  bologna: 2114
+  verona: 2114
+  bergamo: 2114
+  udine: 2114
+  sassuolo: 2114
+  empoli: 2114
+  lecce: 2114
+  salerno: 2114
+  frosinone: 2114
+  cagliari: 2114
