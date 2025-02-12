@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   partita-bot:
     image: ghcr.io/lucanori/partita-bot:latest
