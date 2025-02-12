@@ -9,3 +9,6 @@ services:
       - ./data:/app/data
     env_file:
       - .env
+    labels:
+      # Enable Watchtower, remove if not needed
+      - com.centurylinklabs.watchtower.enable=true
