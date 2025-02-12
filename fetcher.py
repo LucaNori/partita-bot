@@ -188,7 +188,7 @@ class MatchFetcher:
             str: Formatted message about the matches
         """
         if not matches:
-            return "Non ci sono partite oggi nella tua città! ⚽️"
+            return None
         
         message = "🎯 Oggi nella tua città ci sono le seguenti partite:\n\n"
         for match in matches:
@@ -205,12 +205,12 @@ class MatchFetcher:
             city (str): The city to check for matches (case-insensitive)
             
         Returns:
-            str: Formatted message about matches in the city
+            str: Formatted message about matches in the city, or None if no matches
         """
         matches = self.get_matches_for_city(city)
         message = self.format_match_message(matches)
         
-        # After sending notification, cleanup old cache files
+        # After checking matches, cleanup old cache files
         self._cleanup_old_cache_files()
         
         return message

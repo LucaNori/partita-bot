@@ -78,13 +78,15 @@ class MatchScheduler:
             
         message = self.fetcher.check_matches_for_city(city)
         
-        try:
-            await self.bot.send_message(
-                chat_id=telegram_id,
-                text=message
-            )
-        except Exception as e:
-            print(f"Failed to send message to user {telegram_id}: {str(e)}")
+        # Only send notification if there are matches
+        if message:
+            try:
+                await self.bot.send_message(
+                    chat_id=telegram_id,
+                    text=message
+                )
+            except Exception as e:
+                print(f"Failed to send message to user {telegram_id}: {str(e)}")
                 
     def get_next_run_time(self, telegram_id: int) -> datetime:
         """Get the next scheduled run time for a specific user."""

@@ -24,14 +24,16 @@ async def simulate_notification(city: str, test_date: datetime):
     cache_status = "Using cached data" if os.path.exists(cache_file) else "No cache found, will fetch from API"
     print(f"Cache status: {cache_status}")
     
-    print("\nNotification content:")
+    print("\nNotification status:")
     print("-" * 50)
     
     # Get matches and format the message
-    matches = fetcher.get_matches_for_city(city, test_date)
-    message = fetcher.format_match_message(matches)
-    
-    print(message)
+    message = fetcher.check_matches_for_city(city)
+    if message:
+        print("Notification would be sent with content:")
+        print(message)
+    else:
+        print("No notification would be sent (no matches found)")
     print("-" * 50)
 
 async def main():
