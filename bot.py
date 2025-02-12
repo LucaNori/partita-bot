@@ -31,6 +31,26 @@ db = Database()
 WAITING_FOR_CITY = 1
 WAITING_FOR_TIMEZONE = 2
 
+class Bot:
+    def __init__(self, token):
+        self.app = Application.builder().token(token).build()
+        self.bot = self.app.bot
+        
+    def send_message_sync(self, chat_id: int, text: str):
+        """Synchronous version of send_message."""
+        async def _send():
+            await self.bot.send_message(chat_id=chat_id, text=text)
+        
+        # Create event loop if there isn't one
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        # Run the async function
+        loop.run_until_complete(_send())
+
 # Keyboard layouts
 def get_main_keyboard():
     """Get the main keyboard layout."""
@@ -177,8 +197,8 @@ async def handle_invalid_input(update: Update, context: ContextTypes.DEFAULT_TYP
 
 def run_bot():
     """Run the bot."""
-    # Create the Application
-    application = Application.builder().token(config.TELEGRAM_BOT_TOKEN).build()
+    # Create the Bot instance
+    config.BOT = Bot(config.TELEGRAM_BOT_TOKEN)
 
     # Create conversation handler for city setting
     city_conv_handler = ConversationHandler(
@@ -204,15 +224,15 @@ def run_bot():
     )
 
     # Add handlers
-    application.add_handler(city_conv_handler)
-    application.add_handler(timezone_conv_handler)
+    config.BOT.app.add_handler(city_conv_handler)
+    config.BOT.app.add_handler(timezone_conv_handler)
 
     # Initialize and start the scheduler
-    scheduler = MatchScheduler(application.bot)
+    scheduler = MatchScheduler(config.BOT.bot)
     scheduler.start()
 
     # Run the bot
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    config.BOT.app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 def main():
     """Start both the bot and admin interface."""

@@ -62,7 +62,7 @@ def toggle_access(user_id):
 
 @app.route('/notify_user/<int:user_id>', methods=['POST'])
 @auth.login_required
-async def notify_user(user_id):
+def notify_user(user_id):
     """Send a notification to a specific user if matches are found."""
     try:
         user = db.get_user(user_id)
@@ -75,7 +75,7 @@ async def notify_user(user_id):
         
         if message:
             # Send notification
-            await config.BOT.send_message(
+            config.BOT.send_message_sync(
                 chat_id=user_id,
                 text=message
             )
@@ -90,7 +90,7 @@ async def notify_user(user_id):
 
 @app.route('/test_notification/<int:user_id>', methods=['POST'])
 @auth.login_required
-async def test_notification(user_id):
+def test_notification(user_id):
     """Send a test notification to a specific user."""
     try:
         user = db.get_user(user_id)
@@ -110,7 +110,7 @@ async def test_notification(user_id):
             message += "⚽️ Test Match vs Test Team\n🕒 15:00 (CET)\n\n"
 
         # Send test notification
-        await config.BOT.send_message(
+        config.BOT.send_message_sync(
             chat_id=user_id,
             text=message
         )
