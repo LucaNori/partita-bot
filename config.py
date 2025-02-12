@@ -21,6 +21,12 @@ NOTIFICATION_MINUTE = 0  # Minute of the hour when notifications are sent
 # Database Configuration
 DATABASE_PATH = os.path.join('data', 'bot.sqlite3')
 
-# Match API Configuration
-# TODO: Add configuration for the football matches API
-# For now, we'll use a mock data source
+# Football Data API Configuration
+FOOTBALL_API_TOKEN = os.getenv('FOOTBALL_API_TOKEN')
+if not FOOTBALL_API_TOKEN:
+    raise ValueError("FOOTBALL_API_TOKEN not found in environment variables")
+
+FOOTBALL_API_BASE_URL = "http://api.football-data.org/v4"
+FOOTBALL_API_HEADERS = {
+    'X-Auth-Token': FOOTBALL_API_TOKEN
+}
