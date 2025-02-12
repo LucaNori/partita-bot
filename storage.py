@@ -13,6 +13,7 @@ class User(Base):
     telegram_id = Column(Integer, unique=True, nullable=False)
     username = Column(String, nullable=True)
     city = Column(String, nullable=False)
+    timezone = Column(String, default='Europe/Rome')  # Default timezone
     created_at = Column(DateTime, default=datetime.utcnow)
     is_blocked = Column(Boolean, default=False)
 
@@ -33,13 +34,14 @@ class Database:
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
 
-    def add_user(self, telegram_id: int, username: str, city: str) -> User:
+    def add_user(self, telegram_id: int, username: str, city: str, timezone: str = 'Europe/Rome') -> User:
         user = self.session.query(User).filter_by(telegram_id=telegram_id).first()
         if user:
             user.username = username
             user.city = city
+            user.timezone = timezone
         else:
-            user = User(telegram_id=telegram_id, username=username, city=city)
+            user = User(telegram_id=telegram_id, username=username, city=city, timezone=timezone)
             self.session.add(user)
         self.session.commit()
         return user
@@ -51,6 +53,14 @@ class Database:
         user = self.get_user(telegram_id)
         if user:
             user.city = city
+            self.session.commit()
+            return True
+        return False
+
+    def update_user_timezone(self, telegram_id: int, timezone: str) -> bool:
+        user = self.get_user(telegram_id)
+        if user:
+            user.timezone = timezone
             self.session.commit()
             return True
         return False
