@@ -8,14 +8,17 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Add permissions at job level
     permissions:
       contents: read
       packages: write
+      id-token: write  # Needed for signing
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      # Convert repository name to lowercase for GHCR
       - name: Set repository name to lowercase
         run: |
           echo "REPO_LOWER=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
@@ -23,13 +26,15 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
 
+      # Configure authentication for GHCR
       - name: Log into GitHub Container Registry
         uses: docker/login-action@v1
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Build and push the image
       - name: Build and push Docker image
         uses: docker/build-push-action@v2
         with:
@@ -37,7 +42,13 @@ jobs:
           push: true
           tags: ghcr.io/${{ env.REPO_LOWER }}:${{ github.ref_name }},ghcr.io/${{ env.REPO_LOWER }}:latest
 
-      - name: Sign the Docker image
+      # Sign the image using keyless signing
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.1.1
+        with:
+          cosign-release: 'v2.1.1'
+
+      - name: Sign the published Docker image
         env:
           COSIGN_EXPERIMENTAL: 1
         run: |
