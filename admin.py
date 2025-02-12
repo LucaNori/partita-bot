@@ -2,6 +2,7 @@ from flask import Flask, render_template_string, request, redirect, url_for, Res
 from functools import wraps
 import config
 from storage import Database
+from sqlalchemy import func
 
 app = Flask(__name__)
 db = Database()
@@ -105,12 +106,17 @@ def requires_auth(f):
         return f(*args, **kwargs)
     return decorated
 
+def get_current_mode():
+    """Get the current access control mode from the database."""
+    # Check if there are any whitelist entries
+    whitelist_count = db.session.query(func.count('*')).select_from(db.AccessControl).filter_by(mode='whitelist').scalar()
+    return 'whitelist' if whitelist_count > 0 else 'blocklist'
+
 @app.route('/')
 @requires_auth
 def index():
     users = db.get_all_users()
-    # TODO: Implement current_mode detection from AccessControl table
-    current_mode = 'blocklist'  # Default mode
+    current_mode = get_current_mode()
     return render_template_string(HTML_TEMPLATE, users=users, current_mode=current_mode)
 
 @app.route('/block/<int:telegram_id>', methods=['POST'])
@@ -130,8 +136,12 @@ def unblock_user(telegram_id):
 def set_mode():
     mode = request.form.get('mode')
     if mode in ['whitelist', 'blocklist']:
-        # TODO: Implement mode switching in database
-        pass
+        # Clear existing access control entries
+        db.session.query(db.AccessControl).delete()
+        # If whitelist mode is selected, add a dummy entry to indicate whitelist mode
+        if mode == 'whitelist':
+            db.set_access_mode('whitelist', 0)  # Use 0 as a dummy telegram_id
+        db.session.commit()
     return redirect(url_for('index'))
 
 def run_admin_interface():
