@@ -30,3 +30,5 @@ venv/
 .vscode/
 *.swp
 *.swo
+fetcher_test.json
+test_api.py
