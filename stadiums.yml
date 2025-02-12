@@ -1,3 +1,6 @@
+area_ids:
+  italy: 2114
+
 stadiums:
   milano:
     - Giuseppe Meazza
@@ -23,7 +26,7 @@ stadiums:
   udine:
     - Bluenergy Stadium
     - Dacia Arena
-  sassuolo:
+  reggio_emilia:
     - MAPEI Stadium - Città del Tricolore
   empoli:
     - Carlo Castellani
@@ -35,22 +38,3 @@ stadiums:
     - Benito Stirpe
   cagliari:
     - Unipol Domus
-
-# Area IDs for each city (all Italian cities use 2114 for Serie A)
-area_ids:
-  milano: 2114
-  roma: 2114
-  napoli: 2114
-  torino: 2114
-  firenze: 2114
-  genova: 2114
-  bologna: 2114
-  verona: 2114
-  bergamo: 2114
-  udine: 2114
-  sassuolo: 2114
-  empoli: 2114
-  lecce: 2114
-  salerno: 2114
-  frosinone: 2114
-  cagliari: 2114
