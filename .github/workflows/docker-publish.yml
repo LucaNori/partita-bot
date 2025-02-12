@@ -1,65 +1,37 @@
-name: Docker
+name: Build and publish a Docker image to ghcr.io
 
 on:
-  push:
-    tags: [ 'v*.*.*' ]
+  # publish on releases, e.g. v2.1.13 (image tagged as "2.1.13" - "v" prefix is removed)
+  release:
+    types: [ published ]
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  # publish on pushes to the main branch (image tagged as "latest")
+  push:
+    branches:
+      - main
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  docker_publish:
+    runs-on: ubuntu-20.04
     permissions:
       contents: read
       packages: write
-      id-token: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v2
 
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v3.1.1
+      # Build and publish Docker image
+      - name: Build and publish a Docker image for ${{ github.repository }}
+        uses: macbre/push-to-ghcr@master
         with:
-          cosign-release: 'v2.1.1'
-          
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+          image_name: ${{ github.repository }}  # it will be lowercased internally
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Log into registry ${{ env.REGISTRY }}
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push Docker image
-        id: build-and-push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Update TUF Metadata
-        run: tuf client update || true
-
-      - name: Sign the published Docker image
-        env:
-          TAGS: ${{ steps.meta.outputs.tags }}
-          DIGEST: ${{ steps.build-and-push.outputs.digest }}
-        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+      # Optional: Update Docker Hub as well
+      # - name: Build and publish to Docker Hub
+      #   uses: macbre/push-to-ghcr@master
+      #   with:
+      #     image_name: ${{ github.repository }}
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     docker_io_token: ${{ secrets.DOCKER_IO_ACCESS_TOKEN }}
+      #     repository: docker.io
