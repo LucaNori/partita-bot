@@ -1,17 +1,14 @@
-FROM python:3.11-slim
+FROM python:3.10-slim
 
 WORKDIR /app
 
+# Copy only requirements.txt first to leverage Docker cache
 COPY requirements.txt .
+
+# Install dependencies from requirements.txt (including Flask-HTTPAuth)
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy the rest of the application code
 COPY . .
-
-# Create directory for SQLite database
-RUN mkdir -p /app/data
-VOLUME /app/data
-
-# Expose port for admin interface
-EXPOSE 5000
 
 CMD ["python", "bot.py"]
