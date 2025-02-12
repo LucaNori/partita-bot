@@ -1,4 +1,4 @@
-name: Keep the versions up-to-date
+name: Update latest tag
 
 on:
   release:
@@ -7,18 +7,18 @@ on:
       - edited
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-    branches-ignore:
-      - '**'
-    paths-ignore:
-      - '**'
+      - 'v*.*.*'
 
 jobs:
-  actions-tagger:
+  update-latest:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: Actions-R-Us/actions-tagger@v2
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Update latest tag
+        uses: EndBug/latest-tag@latest
         with:
-          publish_latest_tag: true
+          description: "Latest stable version"
