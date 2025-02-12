@@ -21,6 +21,15 @@
         .block { background-color: #f44336; color: white; }
         .allow { background-color: #4CAF50; color: white; }
         .unblock, .remove { background-color: #2196F3; color: white; }
+        .test { background-color: #ff9800; color: white; }
+        .notification-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success { background-color: #dff0d8; color: #3c763d; border: 1px solid #d6e9c6; }
+        .info { background-color: #d9edf7; color: #31708f; border: 1px solid #bce8f1; }
+        .error { background-color: #f2dede; color: #a94442; border: 1px solid #ebccd1; }
     </style>
 </head>
 <body>
@@ -43,6 +52,16 @@
                 <button type="submit" class="button">Update Mode</button>
             </form>
         </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="notification-result {{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
 
         <h3>Users</h3>
         <table class="user-list">
@@ -76,6 +95,12 @@
                                 <button type="submit" class="button unblock">Unblock</button>
                             {% endif %}
                         {% endif %}
+                    </form>
+                    <form method="POST" action="{{ url_for('notify_user', user_id=user.telegram_id) }}" style="display: inline;">
+                        <button type="submit" class="button test" title="Send notification if matches are found">Notify User</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('test_notification', user_id=user.telegram_id) }}" style="display: inline;">
+                        <button type="submit" class="button test" title="Send test notification">Test Notify</button>
                     </form>
                 </td>
             </tr>
