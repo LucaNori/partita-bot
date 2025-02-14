@@ -31,5 +31,5 @@ venv/
 *.swp
 *.swo
 tasks.md
-/test/data
+/test
 /data
