@@ -6,6 +6,11 @@ from storage import Database
 from fetcher import MatchFetcher
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import asyncio
+import nest_asyncio
+
+# Enable nested event loops
+nest_asyncio.apply()
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'  # Change this to a secure secret key
@@ -70,6 +75,10 @@ def notify_user(user_id):
             flash('User not found', 'error')
             return redirect(url_for('index'))
 
+        # Create new event loop for this request
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
         # Check for matches
         message = fetcher.check_matches_for_city(user.city)
         
@@ -79,12 +88,19 @@ def notify_user(user_id):
                 chat_id=user_id,
                 text=message
             )
+            # Update last notification time
+            db.update_last_notification(user_id)
             flash(f'Notification sent to user {user_id}', 'success')
         else:
             flash(f'No matches found for user {user_id} in {user.city}. Notification not sent.', 'info')
             
     except Exception as e:
         flash(f'Error sending notification: {str(e)}', 'error')
+    finally:
+        try:
+            loop.close()
+        except:
+            pass
     
     return redirect(url_for('index'))
 
@@ -97,6 +113,10 @@ def test_notification(user_id):
         if not user:
             flash('User not found', 'error')
             return redirect(url_for('index'))
+
+        # Create new event loop for this request
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
         # Get matches but always send a notification
         matches = fetcher.get_matches_for_city(user.city)
@@ -114,10 +134,17 @@ def test_notification(user_id):
             chat_id=user_id,
             text=message
         )
+        # Update last notification time
+        db.update_last_notification(user_id)
         flash(f'Test notification sent to user {user_id}', 'success')
             
     except Exception as e:
         flash(f'Error sending test notification: {str(e)}', 'error')
+    finally:
+        try:
+            loop.close()
+        except:
+            pass
     
     return redirect(url_for('index'))
 

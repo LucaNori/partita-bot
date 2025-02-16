@@ -30,6 +30,7 @@
         .success { background-color: #dff0d8; color: #3c763d; border: 1px solid #d6e9c6; }
         .info { background-color: #d9edf7; color: #31708f; border: 1px solid #bce8f1; }
         .error { background-color: #f2dede; color: #a94442; border: 1px solid #ebccd1; }
+        .last-notification { font-size: 0.9em; color: #666; }
     </style>
 </head>
 <body>
@@ -69,6 +70,7 @@
                 <th>User ID</th>
                 <th>Username</th>
                 <th>City</th>
+                <th>Last Notification</th>
                 <th>Actions</th>
             </tr>
             {% for user in users %}
@@ -76,6 +78,7 @@
                 <td>{{ user.telegram_id }}</td>
                 <td>{{ user.username or 'N/A' }}</td>
                 <td>{{ user.city }}</td>
+                <td class="last-notification">{{ db.format_last_notification(user.telegram_id) }}</td>
                 <td>
                     <form method="POST" action="{{ url_for('toggle_access', user_id=user.telegram_id) }}" style="display: inline;">
                         {% if current_mode == 'whitelist' %}
