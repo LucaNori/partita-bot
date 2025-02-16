@@ -31,7 +31,7 @@ class AccessMode(Base):
     __tablename__ = 'access_mode'
 
     id = Column(Integer, primary_key=True)
-    mode = Column(String, nullable=False, default='blocklist')  # 'whitelist' or 'blocklist'
+    mode = Column(String, nullable=False, default='blocklist')
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Database:
@@ -43,10 +43,8 @@ class Database:
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
 
-        # Run schema upgrade to add last_notification column if it doesn't exist.
         self._upgrade_schema()
 
-        # Ensure there's at least one access mode record.
         if not self.session.query(AccessMode).first():
             default_mode = AccessMode(mode='blocklist')
             self.session.add(default_mode)
@@ -133,9 +131,10 @@ class Database:
             ).first())
 
     def update_last_notification(self, telegram_id: int):
+        """Update the last notification time with a timezone-aware UTC timestamp."""
         user = self.get_user(telegram_id)
         if user:
-            user.last_notification = func.now()
+            user.last_notification = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
             self.session.commit()
             
     def format_last_notification(self, telegram_id: int) -> str:
