@@ -12,7 +12,7 @@ from telegram.ext import (
     ConversationHandler,
 )
 from storage import Database
-from scheduler import MatchScheduler
+from scheduler import create_scheduler
 from admin import run_admin_interface
 import config
 import threading
@@ -32,17 +32,15 @@ class Bot:
     def __init__(self, token):
         self.app = Application.builder().token(token).build()
         self.bot = self.app.bot
-        
+
     def send_message_sync(self, chat_id: int, text: str):
         async def _send():
             await self.bot.send_message(chat_id=chat_id, text=text)
-        
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-        
         loop.run_until_complete(_send())
 
 def get_main_keyboard():
@@ -64,16 +62,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_access(update):
         await handle_unauthorized(update)
         return
-    
     user_id = update.effective_user.id
     username = update.effective_user.username
-    
     user = db.get_user(user_id)
     if user:
         await update.message.reply_text(
-            f"Bentornato!\n"
-            f"La tua città attuale è {user.city}\n"
-            f"Il tuo fuso orario è {user.timezone}\n\n"
+            f"Bentornato!\nLa tua città attuale è {user.city}\nIl tuo fuso orario è {user.timezone}\n\n"
             "Usa i pulsanti sotto per modificare le impostazioni.",
             reply_markup=get_main_keyboard()
         )
@@ -87,7 +81,6 @@ async def start_city_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_access(update):
         await handle_unauthorized(update)
         return ConversationHandler.END
-    
     await update.message.reply_text(
         "Per favore, invia il nome della città (es. Roma, Milano, Napoli):",
         reply_markup=ReplyKeyboardRemove()
@@ -98,18 +91,14 @@ async def set_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_access(update):
         await handle_unauthorized(update)
         return ConversationHandler.END
-    
     city = update.message.text
     user_id = update.effective_user.id
     username = update.effective_user.username
-    
     user = db.get_user(user_id)
     timezone = user.timezone if user else 'Europe/Rome'
     db.add_user(user_id, username, city, timezone)
-    
     await update.message.reply_text(
-        f"Ho impostato la tua città a {city}.\n"
-        "Riceverai notifiche ogni giorno alle 7:00 del tuo fuso orario se ci sono partite nella tua città!",
+        f"Ho impostato la tua città a {city}.\nRiceverai notifiche ogni giorno alle 7:00 del tuo fuso orario se ci sono partite nella tua città!",
         reply_markup=get_main_keyboard()
     )
     return ConversationHandler.END
@@ -118,15 +107,12 @@ async def start_timezone_input(update: Update, context: ContextTypes.DEFAULT_TYP
     if not await check_access(update):
         await handle_unauthorized(update)
         return ConversationHandler.END
-    
     common_timezones = [
         ['Europe/Rome', 'Europe/London'],
         ['Europe/Paris', 'Europe/Berlin'],
         ['Europe/Madrid', 'Europe/Amsterdam']
     ]
-    
     timezone_keyboard = ReplyKeyboardMarkup(common_timezones, resize_keyboard=True)
-    
     await update.message.reply_text(
         "Seleziona il tuo fuso orario o invialo manualmente (es. Europe/Rome):",
         reply_markup=timezone_keyboard
@@ -137,9 +123,7 @@ async def set_timezone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_access(update):
         await handle_unauthorized(update)
         return ConversationHandler.END
-    
     timezone_str = update.message.text
-    
     try:
         pytz.timezone(timezone_str)
     except pytz.exceptions.UnknownTimeZoneError:
@@ -148,10 +132,8 @@ async def set_timezone(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=ReplyKeyboardRemove()
         )
         return WAITING_FOR_TIMEZONE
-    
     user_id = update.effective_user.id
     user = db.get_user(user_id)
-    
     if user:
         db.update_user_timezone(user_id, timezone_str)
         city = user.city
@@ -159,10 +141,8 @@ async def set_timezone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         username = update.effective_user.username
         city = "da impostare"
         db.add_user(user_id, username, city, timezone_str)
-    
     await update.message.reply_text(
-        f"Ho impostato il tuo fuso orario a {timezone_str}.\n"
-        "Riceverai notifiche alle 7:00 del tuo fuso orario!",
+        f"Ho impostato il tuo fuso orario a {timezone_str}.\nRiceverai notifiche alle 7:00 del tuo fuso orario!",
         reply_markup=get_main_keyboard()
     )
     return ConversationHandler.END
@@ -176,7 +156,6 @@ async def handle_invalid_input(update: Update, context: ContextTypes.DEFAULT_TYP
 
 def run_bot():
     config.BOT = Bot(config.TELEGRAM_BOT_TOKEN)
-
     city_conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler('start', start),
@@ -187,7 +166,6 @@ def run_bot():
         },
         fallbacks=[MessageHandler(filters.ALL, handle_invalid_input)],
     )
-
     timezone_conv_handler = ConversationHandler(
         entry_points=[
             MessageHandler(filters.Regex('^🕒 Imposta Fuso Orario$'), start_timezone_input),
@@ -197,20 +175,16 @@ def run_bot():
         },
         fallbacks=[MessageHandler(filters.ALL, handle_invalid_input)],
     )
-
     config.BOT.app.add_handler(city_conv_handler)
     config.BOT.app.add_handler(timezone_conv_handler)
-
-    scheduler = MatchScheduler(config.BOT.bot)
+    scheduler = create_scheduler(config.BOT.bot)
     scheduler.start()
-
     config.BOT.app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 def main():
     admin_thread = threading.Thread(target=run_admin_interface)
     admin_thread.daemon = True
     admin_thread.start()
-
     run_bot()
 
 if __name__ == '__main__':
