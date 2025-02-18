@@ -9,11 +9,10 @@ from zoneinfo import ZoneInfo
 import asyncio
 import nest_asyncio
 
-# Enable nested event loops
 nest_asyncio.apply()
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-here'  # Change this to a secure secret key
+app.secret_key = 'your-secret-key-here'
 auth = HTTPBasicAuth()
 db = Database()
 fetcher = MatchFetcher()
@@ -57,7 +56,7 @@ def toggle_access(user_id):
             db.add_to_list('whitelist', user_id)
         elif action == 'remove':
             db.remove_from_list('whitelist', user_id)
-    else:  # blocklist mode
+    else:
         if action == 'block':
             db.add_to_list('blocklist', user_id)
         elif action == 'unblock':
@@ -68,27 +67,22 @@ def toggle_access(user_id):
 @app.route('/notify_user/<int:user_id>', methods=['POST'])
 @auth.login_required
 def notify_user(user_id):
-    """Send a notification to a specific user if matches are found."""
     try:
         user = db.get_user(user_id)
         if not user:
             flash('User not found', 'error')
             return redirect(url_for('index'))
 
-        # Create new event loop for this request
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        # Check for matches
         message = fetcher.check_matches_for_city(user.city)
         
         if message:
-            # Send notification
             config.BOT.send_message_sync(
                 chat_id=user_id,
                 text=message
             )
-            # Update last notification time
             db.update_last_notification(user_id)
             flash(f'Notification sent to user {user_id}', 'success')
         else:
@@ -107,18 +101,15 @@ def notify_user(user_id):
 @app.route('/test_notification/<int:user_id>', methods=['POST'])
 @auth.login_required
 def test_notification(user_id):
-    """Send a test notification to a specific user."""
     try:
         user = db.get_user(user_id)
         if not user:
             flash('User not found', 'error')
             return redirect(url_for('index'))
 
-        # Create new event loop for this request
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        # Get matches but always send a notification
         matches = fetcher.get_matches_for_city(user.city)
         
         message = "🎯 Oggi nella tua città ci sono le seguenti partite:\n\n"
@@ -129,12 +120,10 @@ def test_notification(user_id):
         else:
             message += "⚽️ Test Match vs Test Team\n🕒 15:00 (CET)\n\n"
 
-        # Send test notification
         config.BOT.send_message_sync(
             chat_id=user_id,
             text=message
         )
-        # Update last notification time
         db.update_last_notification(user_id)
         flash(f'Test notification sent to user {user_id}', 'success')
             
@@ -149,5 +138,4 @@ def test_notification(user_id):
     return redirect(url_for('index'))
 
 def run_admin_interface():
-    """Run the admin interface."""
     app.run(host='0.0.0.0', port=config.ADMIN_PORT)

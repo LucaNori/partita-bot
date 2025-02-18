@@ -17,14 +17,13 @@ class User(Base):
     timezone = Column(String, default='Europe/Rome')
     created_at = Column(DateTime, default=datetime.utcnow)
     is_blocked = Column(Boolean, default=False)
-    # New column added for tracking last notification; it is nullable so existing records remain valid.
     last_notification = Column(DateTime, nullable=True)
 
 class AccessControl(Base):
     __tablename__ = 'access_control'
 
     id = Column(Integer, primary_key=True)
-    mode = Column(String, nullable=False)  # 'whitelist' or 'blocklist'
+    mode = Column(String, nullable=False)
     telegram_id = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -32,7 +31,7 @@ class AccessMode(Base):
     __tablename__ = 'access_mode'
 
     id = Column(Integer, primary_key=True)
-    mode = Column(String, nullable=False, default='blocklist')  # 'whitelist' or 'blocklist'
+    mode = Column(String, nullable=False, default='blocklist')
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Database:
@@ -43,21 +42,14 @@ class Database:
         Base.metadata.create_all(self.engine)
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
-
-        # Run schema upgrade to add last_notification column if it doesn't exist.
         self._upgrade_schema()
 
-        # Ensure there's at least one access mode record.
         if not self.session.query(AccessMode).first():
             default_mode = AccessMode(mode='blocklist')
             self.session.add(default_mode)
             self.session.commit()
 
     def _upgrade_schema(self):
-        """
-        Check if the 'last_notification' column exists in the 'users' table.
-        If not, add it without affecting existing data.
-        """
         inspector = inspect(self.engine)
         columns = [col["name"] for col in inspector.get_columns(User.__tablename__)]
         if "last_notification" not in columns:
@@ -134,7 +126,6 @@ class Database:
             ).first())
 
     def update_last_notification(self, telegram_id: int):
-        """Update the last notification time with a timezone-aware UTC timestamp."""
         user = self.get_user(telegram_id)
         if user:
             user.last_notification = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
