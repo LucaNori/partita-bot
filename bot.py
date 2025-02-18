@@ -1,3 +1,6 @@
+import nest_asyncio
+nest_asyncio.apply()
+
 import asyncio
 import logging
 from datetime import datetime
@@ -16,8 +19,6 @@ from scheduler import create_scheduler
 from admin import run_admin_interface
 import config
 import threading
-import nest_asyncio
-nest_asyncio.apply()
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -34,15 +35,25 @@ class Bot:
     def __init__(self, token):
         self.app = Application.builder().token(token).build()
         self.bot = self.app.bot
+        self._loop = None
 
     def send_message_sync(self, chat_id: int, text: str):
         async def _send():
             await self.bot.send_message(chat_id=chat_id, text=text)
-        new_loop = asyncio.new_event_loop()
+        
+        if self._loop is None:
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+        
         try:
-            new_loop.run_until_complete(_send())
-        finally:
-            new_loop.close()
+            self._loop.run_until_complete(_send())
+        except RuntimeError as e:
+            if "Event loop is closed" in str(e):
+                self._loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(self._loop)
+                self._loop.run_until_complete(_send())
+            else:
+                raise
 
 def get_main_keyboard():
     return ReplyKeyboardMarkup([
