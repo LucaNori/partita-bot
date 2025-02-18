@@ -12,7 +12,7 @@ import nest_asyncio
 nest_asyncio.apply()
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-here'
+app.secret_key = config.FLASK_SECRET_KEY
 auth = HTTPBasicAuth()
 db = Database()
 fetcher = MatchFetcher()
