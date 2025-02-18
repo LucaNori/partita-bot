@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, func, inspect
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, func, inspect, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
@@ -17,6 +17,7 @@ class User(Base):
     timezone = Column(String, default='Europe/Rome')
     created_at = Column(DateTime, default=datetime.utcnow)
     is_blocked = Column(Boolean, default=False)
+    # New column added for tracking last notification; it is nullable so existing records remain valid.
     last_notification = Column(DateTime, nullable=True)
 
 class AccessControl(Base):
@@ -31,7 +32,7 @@ class AccessMode(Base):
     __tablename__ = 'access_mode'
 
     id = Column(Integer, primary_key=True)
-    mode = Column(String, nullable=False, default='blocklist')
+    mode = Column(String, nullable=False, default='blocklist')  # 'whitelist' or 'blocklist'
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Database:
@@ -43,8 +44,10 @@ class Database:
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
 
+        # Run schema upgrade to add last_notification column if it doesn't exist.
         self._upgrade_schema()
 
+        # Ensure there's at least one access mode record.
         if not self.session.query(AccessMode).first():
             default_mode = AccessMode(mode='blocklist')
             self.session.add(default_mode)
@@ -59,7 +62,7 @@ class Database:
         columns = [col["name"] for col in inspector.get_columns(User.__tablename__)]
         if "last_notification" not in columns:
             with self.engine.connect() as conn:
-                conn.execute("ALTER TABLE users ADD COLUMN last_notification DATETIME")
+                conn.execute(text("ALTER TABLE users ADD COLUMN last_notification DATETIME"))
 
     def add_user(self, telegram_id: int, username: str, city: str, timezone: str = 'Europe/Rome') -> User:
         user = self.session.query(User).filter_by(telegram_id=telegram_id).first()
