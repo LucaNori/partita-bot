@@ -1,151 +1,97 @@
 # Partita Bot
 
-A Telegram bot that notifies users about soccer matches in their city. The bot sends daily notifications at 7 AM if there are matches scheduled in the user's selected city.
+Partita Bot is a Telegram bot that notifies users about daily football matches. Born because i was tired of finding myself in traffic jams in my city, and shared for every frustrated user with my same problem.
+To use the bot, the end user can configure their city with a simple telegram chat. The bot fetches match data daily via an integrated scheduler and sends notifications at 7:00 AM local time if a match is scheduled in that day. An admin panel provides web-based controls for managing users and the bot access mode (blocklist/whitelist).
 
 ## Features
 
-- Daily notifications at 7 AM about soccer matches in the user's city
-- User city preference management
-- Admin interface for user management
-- Access control with whitelist/blocklist support
-- Docker deployment with GHCR support
+- **Daily Notifications:** The bot checks for football matches in a user's configured city and sends a notification every morning at 7:00 AM local time if a match is scheduled.
+- **User Configuration:** New users are prompted to set their city and time zone. Existing users can update their settings.
+- **Admin Panel:** A simple Flask-based admin interface for managing mode settings and users (allow, block, unblock, or remove). Includes access control and flash notifications.
+- **Scheduler:** APScheduler is used for periodic job execution. The scheduler fetches match data on a set schedule.
+- **Docker Ready:** The project is containerized using Docker. There are separate configurations for production and local development.
 
-## Prerequisites
+## Project Structure
 
-- Python 3.11+ (for local development)
-- Docker and Docker Compose (for containerized deployment)
-- A Telegram Bot Token (get it from [@BotFather](https://t.me/botfather))
-
-## Local Development
-
-1. Clone the repository:
-```bash
-git clone https://github.com/LucaNori/partita-bot.git
-cd partita-bot
+```
+├── .env.example             # Sample environment variables file
+├── .gitignore
+├── Dockerfile               # Docker container build instructions
+├── docker-compose.yml       # Production deployment Docker Compose file
+├── docker-compose.local.yml # Local deployment Docker Compose file for testing changes
+├── admin.py                 # Flask-based admin panel
+├── bot.py                   # Main Telegram bot code handling commands and messaging
+├── config.py                # Configuration variables and global bot instance
+├── CHANGELOG.md
+├── DEVELOPER_GUIDE.md       # Developer instructions and best practices
+├── fetcher.py               # Module for fetching match data (e.g., from an API or local source)
+├── LICENSE
+├── README.md                # This documentation file
+├── requirements.txt         # Python dependencies
+├── scheduler.py             # Scheduler setup with APScheduler to schedule notification jobs
+├── storage.py               # Database module for user data and notifications (using SQLAlchemy, etc.)
+├── teams.yml                # (Optional) Teams configuration file
+├── static/                  
+│   └── favicon.ico          # Favicon for the admin panel
+└── templates/
+    └── admin.html         # Admin panel HTML template with favicon link
 ```
 
-2. Create and activate a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
+## Setup and Configuration
 
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+1. **Environment Variables:**  
+   Copy `.env.example` to `.env` and update the necessary variables. Common settings include the Telegram bot token, admin port, and database connection details.
 
-4. Create a `.env` file from the example:
-```bash
-cp .env.example .env
-```
+2. **Dependencies:**  
+   All dependencies are listed in `requirements.txt`. They include:
+   - python-telegram-bot (v20.7)
+   - Flask and Flask-HTTPAuth
+   - SQLAlchemy
+   - APScheduler
+   - nest_asyncio (for handling nested event loops)
+   - Other libraries such as pytz, requests, PyYAML, and python-dotenv
 
-5. Edit the `.env` file with your configuration:
-```
-TELEGRAM_BOT_TOKEN=your_bot_token_here
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your_secure_password
-ADMIN_PORT=5000
-```
+3. **Database:**  
+   The `storage.py` module handles database operations. Make sure your database is configured per your environment variables.
 
-6. Run the bot:
-```bash
-python bot.py
-```
+## Running the Bot
 
-## Docker Deployment
+### Via Docker (Production)
 
-### Using Docker Compose (Recommended)
+1. **Build and run:**
+   ```bash
+   docker compose up -d --build
+   ```
+   This uses the default `docker-compose.yml` which might deploy the container from a prebuilt image if configured.
 
-1. Clone the repository:
-```bash
-git clone https://github.com/LucaNori/partita-bot.git
-cd partita-bot
-```
+2. **Logs:**
+   Monitor logs with:
+   ```bash
+   docker compose logs -f
+   ```
 
-2. Create and configure the .env file:
-```bash
-cp .env.example .env
-# Edit .env with your configuration
-```
+### Local Development
 
-3. Pull and run using Docker Compose:
-```bash
-docker compose pull  # Pull the latest image
-docker compose up -d  # Start the container in detached mode
-```
+For local testing with your latest changes without pushing to GitHub, use `docker-compose.local.yml`:
 
-To view logs:
-```bash
-docker compose logs -f
-```
+1. **Build and run locally:**
+   ```bash
+   docker compose -f docker-compose.local.yml up -d --build
+   ```
 
-To stop the bot:
-```bash
-docker compose down
-```
+2. **Access Admin Panel:**
+   Open your browser and navigate to `http://localhost:5000` (or the port specified in your `.env`).
 
-### Manual Docker Deployment
-
-If you prefer to run without Docker Compose:
-
-1. Pull the image:
-```bash
-docker pull ghcr.io/lucanori/partita-bot:latest
-```
-
-2. Run the container:
-```bash
-docker run -d \
-  --name partita-bot \
-  -p 5000:5000 \
-  -v $(pwd)/data:/app/data \
-  --env-file .env \
-  --restart unless-stopped \
-  ghcr.io/lucanori/partita-bot:latest
-```
-
-## Bot Commands
-
-- `/start` - Start the bot
-- `/setcity [city]` - Set your city for match notifications
-- `/check` - Manually check for matches in your city today
-- `/help` - Show help message
-
-## Admin Interface
-
-The admin interface is available at `http://localhost:5000` (or your configured port). Use the credentials set in your `.env` file to log in.
-
-Features:
-- View all registered users
-- Block/unblock users
-- Switch between whitelist and blocklist modes
-- Monitor user cities and registration dates
-
-## GitHub Actions Workflow
-
-The repository includes a GitHub Actions workflow that:
-1. Builds the Docker image
-2. Tags it with the release version and 'latest'
-3. Pushes it to GitHub Container Registry (GHCR)
-
-To create a new release:
-1. Create and push a new tag:
-```bash
-git tag v1.0.0  # Replace with your version
-git push origin v1.0.0
-```
-
-The workflow will automatically build and publish the Docker image to GHCR.
+3. **Logs:**
+   Check real-time logs:
+   ```bash
+   docker compose -f docker-compose.local.yml logs -f
+   ```
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+Contributions are welcome. Please refer to `DEVELOPER_GUIDE.md` for guidelines on code style, testing, and Git workflow.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the terms found in the [LICENSE](LICENSE) file.
