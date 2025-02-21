@@ -64,6 +64,58 @@ def toggle_access(user_id):
     
     return redirect(url_for('index'))
 
+@app.route('/notify_all', methods=['POST'])
+@auth.login_required
+def notify_all():
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        users = db.get_all_users()
+        notifications_sent = 0
+        no_matches = 0
+        already_notified = 0
+        
+        current_utc = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        
+        for user in users:
+            try:
+                # Check if user already received notification today
+                if user.last_notification:
+                    last_notif = user.last_notification
+                    if last_notif.tzinfo is None:
+                        last_notif = last_notif.replace(tzinfo=ZoneInfo("UTC"))
+                    if last_notif.date() == current_utc.date():
+                        already_notified += 1
+                        continue
+                
+                message = fetcher.check_matches_for_city(user.city)
+                if message:
+                    config.BOT.send_message_sync(
+                        chat_id=user.telegram_id,
+                        text=message
+                    )
+                    db.update_last_notification(user.telegram_id)
+                    notifications_sent += 1
+                else:
+                    no_matches += 1
+                    
+            except Exception as e:
+                flash(f'Error processing user {user.telegram_id}: {str(e)}', 'error')
+                
+        summary = f'Notifications sent: {notifications_sent}, No matches: {no_matches}, Already notified today: {already_notified}'
+        flash(summary, 'success' if notifications_sent > 0 else 'info')
+            
+    except Exception as e:
+        flash(f'Error in notify_all: {str(e)}', 'error')
+    finally:
+        try:
+            loop.close()
+        except:
+            pass
+    
+    return redirect(url_for('index'))
+
 @app.route('/notify_user/<int:user_id>', methods=['POST'])
 @auth.login_required
 def notify_user(user_id):

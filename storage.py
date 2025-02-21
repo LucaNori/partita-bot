@@ -34,6 +34,13 @@ class AccessMode(Base):
     mode = Column(String, nullable=False, default='blocklist')
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class SchedulerState(Base):
+    __tablename__ = 'scheduler_state'
+
+    id = Column(Integer, primary_key=True)
+    last_run = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class Database:
     def __init__(self):
         db_path = os.path.join('data', 'bot.sqlite3')
@@ -51,10 +58,18 @@ class Database:
 
     def _upgrade_schema(self):
         inspector = inspect(self.engine)
-        columns = [col["name"] for col in inspector.get_columns(User.__tablename__)]
-        if "last_notification" not in columns:
+        
+        # Check and add last_notification column to users table
+        user_columns = [col["name"] for col in inspector.get_columns(User.__tablename__)]
+        if "last_notification" not in user_columns:
             with self.engine.connect() as conn:
                 conn.execute(text("ALTER TABLE users ADD COLUMN last_notification DATETIME"))
+        
+        # Create scheduler_state table if it doesn't exist
+        if not inspector.has_table('scheduler_state'):
+            SchedulerState.__table__.create(self.engine)
+            with self.engine.begin() as conn:
+                conn.execute(text("INSERT INTO scheduler_state (id) VALUES (1)"))
 
     def add_user(self, telegram_id: int, username: str, city: str, timezone: str = 'Europe/Rome') -> User:
         user = self.session.query(User).filter_by(telegram_id=telegram_id).first()
@@ -137,3 +152,18 @@ class Database:
             rome_time = user.last_notification.astimezone(ZoneInfo('Europe/Rome'))
             return rome_time.strftime('%Y-%m-%d %H:%M:%S')
         return 'Never'
+
+    def update_scheduler_last_run(self):
+        with self.engine.begin() as conn:
+            conn.execute(
+                text("UPDATE scheduler_state SET last_run = :now WHERE id = 1"),
+                {"now": datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))}
+            )
+
+    def get_scheduler_last_run(self) -> datetime:
+        result = self.session.query(SchedulerState).first()
+        if result and result.last_run:
+            if result.last_run.tzinfo is None:
+                return result.last_run.replace(tzinfo=ZoneInfo("UTC"))
+            return result.last_run
+        return None

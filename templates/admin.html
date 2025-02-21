@@ -41,6 +41,9 @@
         </div>
         
         <div class="mode-selector">
+            <form method="POST" action="{{ url_for('notify_all') }}" style="float: right;">
+                <button type="submit" class="button test" style="background-color: #673ab7;">Notify All Users</button>
+            </form>
             <h3>Access Control Mode</h3>
             <form method="POST" action="{{ url_for('set_mode') }}">
                 <label>
