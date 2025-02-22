@@ -167,3 +167,35 @@ class Database:
                 return result.last_run.replace(tzinfo=ZoneInfo("UTC"))
             return result.last_run
         return None
+        
+    def remove_blocked_users(self, bot) -> dict:
+        """Remove users who have blocked the bot. Returns statistics about the operation."""
+        users = self.get_all_users()
+        total = len(users)
+        removed = 0
+        errors = []
+        
+        for user in users:
+            try:
+                # Try to send a silent message to check if user blocked the bot
+                bot.send_message_sync(
+                    chat_id=user.telegram_id,
+                    text="\u200b"  # Zero-width space, invisible message
+                )
+            except Exception as e:
+                error_str = str(e).lower()
+                if "forbidden" in error_str and "blocked" in error_str:
+                    # User has blocked the bot, remove them
+                    self.session.delete(user)
+                    removed += 1
+                else:
+                    errors.append(f"User {user.telegram_id}: {str(e)}")
+        
+        if removed > 0:
+            self.session.commit()
+            
+        return {
+            "total_users": total,
+            "removed_users": removed,
+            "errors": errors
+        }

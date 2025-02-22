@@ -4,11 +4,24 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from storage import Database
 from fetcher import MatchFetcher
 import config
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Configure scheduler logging based on DEBUG setting
+scheduler_logger = logging.getLogger('apscheduler')
+scheduler_logger.setLevel(logging.DEBUG if config.DEBUG else logging.WARNING)
 
 def create_scheduler(bot):
     db = Database()
     fetcher = MatchFetcher()
-    scheduler = BackgroundScheduler(timezone="UTC")
+    scheduler = BackgroundScheduler(
+        timezone="UTC",
+        job_defaults={
+            'misfire_grace_time': 15*60,  # 15 minutes grace time for misfired jobs
+            'coalesce': True  # Combine multiple missed runs into a single run
+        }
+    )
     
     def calculate_next_interval():
         """Calculate the next check interval based on current time"""
@@ -62,18 +75,32 @@ def create_scheduler(bot):
                         continue
                 
                 print(f"Checking matches for user {user.telegram_id} in {user.city}...")
-                message = fetcher.check_matches_for_city(user.city)
-                if message:
-                    bot.send_message(chat_id=user.telegram_id, text=message)
-                    db.update_last_notification(user.telegram_id)
-                    notifications_sent += 1
-                    print(f"Notification sent to user {user.telegram_id}")
-                else:
-                    no_matches += 1
-                    print(f"No match found for user {user.telegram_id} in {user.city}")
+                try:
+                    message = fetcher.check_matches_for_city(user.city)
+                    if message:
+                        try:
+                            # Test user is not blocked first with a silent message
+                            bot.send_message(chat_id=user.telegram_id, text="\u200b")
+                            # If that worked, send the actual message
+                            bot.send_message(chat_id=user.telegram_id, text=message)
+                            db.update_last_notification(user.telegram_id)
+                            notifications_sent += 1
+                            print(f"Notification sent to user {user.telegram_id}")
+                        except Exception as send_error:
+                            error_str = str(send_error).lower()
+                            if "forbidden" in error_str and "blocked" in error_str:
+                                print(f"User {user.telegram_id} has blocked the bot")
+                            else:
+                                print(f"Error sending message to user {user.telegram_id}: {str(send_error)}")
+                    else:
+                        no_matches += 1
+                        print(f"No match found for user {user.telegram_id} in {user.city}")
+                except Exception as fetch_error:
+                    print(f"Error fetching matches for user {user.telegram_id}: {str(fetch_error)}")
                     
             except Exception as e:
                 print(f"Error processing user {user.telegram_id}: {str(e)}")
+                logger.error(f"Scheduler error for user {user.telegram_id}: {str(e)}", exc_info=True)
         
         if notifications_sent > 0 or no_matches > 0:
             db.update_scheduler_last_run()

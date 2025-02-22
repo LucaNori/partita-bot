@@ -3,6 +3,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Convert DEBUG string to boolean
+DEBUG = os.getenv('DEBUG', 'false').lower() == 'true'
+
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 FOOTBALL_API_TOKEN = os.getenv('FOOTBALL_API_TOKEN')
 ADMIN_PORT = int(os.getenv('ADMIN_PORT', '5000'))

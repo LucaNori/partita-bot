@@ -3,6 +3,7 @@ nest_asyncio.apply()
 
 import asyncio
 import logging
+import httpx
 from datetime import datetime
 import pytz
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
@@ -20,11 +21,17 @@ from admin import run_admin_interface
 import config
 import threading
 
+# Configure logging based on DEBUG setting
+logging_level = logging.DEBUG if config.DEBUG else logging.INFO
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging_level
 )
 logger = logging.getLogger(__name__)
+
+# Control httpx logging
+httpx_logger = logging.getLogger('httpx')
+httpx_logger.setLevel(logging.DEBUG if config.DEBUG else logging.WARNING)
 
 db = Database()
 
@@ -39,19 +46,28 @@ class Bot:
 
     def send_message_sync(self, chat_id: int, text: str):
         async def _send():
-            await self.bot.send_message(chat_id=chat_id, text=text)
+            try:
+                await self.bot.send_message(chat_id=chat_id, text=text)
+                return True, None
+            except Exception as e:
+                logger.error(f"Error sending message to {chat_id}: {str(e)}")
+                return False, str(e)
         
         if self._loop is None:
             self._loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._loop)
         
         try:
-            self._loop.run_until_complete(_send())
+            success, error = self._loop.run_until_complete(_send())
+            if not success:
+                raise Exception(error)
         except RuntimeError as e:
             if "Event loop is closed" in str(e):
                 self._loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self._loop)
-                self._loop.run_until_complete(_send())
+                success, error = self._loop.run_until_complete(_send())
+                if not success:
+                    raise Exception(error)
             else:
                 raise
 
