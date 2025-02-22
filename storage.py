@@ -3,6 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 import os
+import asyncio
 from zoneinfo import ZoneInfo
 
 Base = declarative_base()
@@ -58,13 +59,11 @@ class Database:
     def _upgrade_schema(self):
         inspector = inspect(self.engine)
         
-        # Check and add last_notification column to users table
         user_columns = [col["name"] for col in inspector.get_columns(User.__tablename__)]
         if "last_notification" not in user_columns:
             with self.engine.connect() as conn:
                 conn.execute(text("ALTER TABLE users ADD COLUMN last_notification DATETIME"))
         
-        # Create scheduler_state table if it doesn't exist
         if not inspector.has_table('scheduler_state'):
             SchedulerState.__table__.create(self.engine)
             with self.engine.begin() as conn:
@@ -167,7 +166,6 @@ class Database:
         return None
         
     async def remove_blocked_users(self, bot) -> dict:
-        """Remove users who have blocked the bot. Returns statistics about the operation."""
         users = self.get_all_users()
         total = len(users)
         removed = 0
@@ -175,20 +173,27 @@ class Database:
         
         for user in users:
             try:
-                # Try to send and then delete a silent message to check if user blocked the bot
-                message = await bot.bot.send_message(
-                    chat_id=user.telegram_id,
-                    text="test message, ignore me"
-                )
-                # Immediately delete the message
-                await bot.bot.delete_message(
-                    chat_id=user.telegram_id,
-                    message_id=message.message_id
-                )
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                try:
+                    message = await bot.bot.send_message(
+                        chat_id=user.telegram_id,
+                        text="test message, please ignore",
+                        disable_notification=True
+                    )
+                    await bot.bot.delete_message(
+                        chat_id=user.telegram_id,
+                        message_id=message.message_id
+                    )
+                finally:
+                    try:
+                        loop.close()
+                    except:
+                        pass
             except Exception as e:
                 error_str = str(e).lower()
                 if "forbidden" in error_str and "blocked" in error_str:
-                    # User has blocked the bot, remove them
                     self.session.delete(user)
                     removed += 1
                 else:

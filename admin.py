@@ -109,7 +109,6 @@ def notify_all():
         
         for user in users:
             try:
-                # Check if user already received notification today
                 if user.last_notification:
                     last_notif = user.last_notification
                     if last_notif.tzinfo is None:
