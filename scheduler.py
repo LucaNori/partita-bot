@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 from apscheduler.schedulers.background import BackgroundScheduler
 from storage import Database
 from fetcher import MatchFetcher
@@ -11,6 +10,9 @@ logger = logging.getLogger(__name__)
 # Configure scheduler logging based on DEBUG setting
 scheduler_logger = logging.getLogger('apscheduler')
 scheduler_logger.setLevel(logging.DEBUG if config.DEBUG else logging.WARNING)
+
+# Use global timezone from config
+TIMEZONE = config.TIMEZONE_INFO
 
 def create_scheduler(bot):
     db = Database()
@@ -25,30 +27,30 @@ def create_scheduler(bot):
     
     def calculate_next_interval():
         """Calculate the next check interval based on current time"""
-        current_utc = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-        cet_time = current_utc.astimezone(ZoneInfo("Europe/Rome"))
+        current_utc = datetime.utcnow().replace(tzinfo=TIMEZONE)
+        local_time = current_utc.astimezone(TIMEZONE)
         
         # If we're in the 8-10 AM window, check every 15 minutes
-        if 8 <= cet_time.hour < 10:
+        if 8 <= local_time.hour < 10:
             return 15 * 60  # 15 minutes in seconds
         
         # Calculate time until 8 AM tomorrow
-        tomorrow = cet_time.date() + timedelta(days=1)
+        tomorrow = local_time.date() + timedelta(days=1)
         next_run = datetime.combine(tomorrow, datetime.min.time().replace(hour=8))
-        next_run = next_run.replace(tzinfo=ZoneInfo("Europe/Rome"))
+        next_run = next_run.replace(tzinfo=TIMEZONE)
         
         # Convert to seconds
-        seconds_until_next = (next_run - cet_time).total_seconds()
+        seconds_until_next = (next_run - local_time).total_seconds()
         return max(seconds_until_next, 15 * 60)  # Minimum 15 minutes
     
     def check_and_send_notifications():
-        current_utc = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-        cet_time = current_utc.astimezone(ZoneInfo("Europe/Rome"))
+        current_utc = datetime.utcnow().replace(tzinfo=TIMEZONE)
+        local_time = current_utc.astimezone(TIMEZONE)
         print(f"[{current_utc.isoformat()}] Checking notification conditions...")
         
         # Check if we're in the 8-10 AM window
-        if not (8 <= cet_time.hour < 10):
-            print(f"Outside notification window (current CET time: {cet_time.strftime('%H:%M')})")
+        if not (8 <= local_time.hour < 10):
+            print(f"Outside notification window (current time: {local_time.strftime('%H:%M')} {TIMEZONE})")
             return
         
         # Check if we already ran today
@@ -68,8 +70,8 @@ def create_scheduler(bot):
                 if user.last_notification:
                     last_notif = user.last_notification
                     if last_notif.tzinfo is None:
-                        last_notif = last_notif.replace(tzinfo=ZoneInfo("UTC"))
-                    if last_notif.date() == current_utc.date():
+                        last_notif = last_notif.replace(tzinfo=TIMEZONE)
+                    if last_notif.date() == local_time.date():
                         already_notified += 1
                         print(f"Notification already sent today for user {user.telegram_id}")
                         continue

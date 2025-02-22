@@ -14,7 +14,6 @@ class User(Base):
     telegram_id = Column(Integer, unique=True, nullable=False)
     username = Column(String, nullable=True)
     city = Column(String, nullable=False)
-    timezone = Column(String, default='Europe/Rome')
     created_at = Column(DateTime, default=datetime.utcnow)
     is_blocked = Column(Boolean, default=False)
     last_notification = Column(DateTime, nullable=True)
@@ -71,14 +70,13 @@ class Database:
             with self.engine.begin() as conn:
                 conn.execute(text("INSERT INTO scheduler_state (id) VALUES (1)"))
 
-    def add_user(self, telegram_id: int, username: str, city: str, timezone: str = 'Europe/Rome') -> User:
+    def add_user(self, telegram_id: int, username: str, city: str) -> User:
         user = self.session.query(User).filter_by(telegram_id=telegram_id).first()
         if user:
             user.username = username
             user.city = city
-            user.timezone = timezone
         else:
-            user = User(telegram_id=telegram_id, username=username, city=city, timezone=timezone)
+            user = User(telegram_id=telegram_id, username=username, city=city)
             self.session.add(user)
         self.session.commit()
         return user
