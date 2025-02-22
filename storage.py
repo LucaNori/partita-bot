@@ -178,7 +178,7 @@ class Database:
                 # Try to send and then delete a silent message to check if user blocked the bot
                 message = await bot.bot.send_message(
                     chat_id=user.telegram_id,
-                    text="\u200b"  # Zero-width space, invisible message
+                    text="test message, ignore me"
                 )
                 # Immediately delete the message
                 await bot.bot.delete_message(
