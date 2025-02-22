@@ -4,6 +4,7 @@ nest_asyncio.apply()
 import asyncio
 import logging
 import httpx
+import os
 from datetime import datetime
 import pytz
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
@@ -135,27 +136,73 @@ async def handle_invalid_input(update: Update, context: ContextTypes.DEFAULT_TYP
     )
     return ConversationHandler.END
 
+async def show_keyboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await check_access(update):
+        await handle_unauthorized(update)
+        return
+    await update.message.reply_text(
+        "Usa il pulsante sotto per impostare la tua città.",
+        reply_markup=get_main_keyboard()
+    )
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.error(f"Exception while handling an update: {context.error}")
+    try:
+        if update and update.effective_message:
+            await update.effective_message.reply_text(
+                "Si è verificato un errore. Usa /start per ricominciare.",
+                reply_markup=get_main_keyboard()
+            )
+    except Exception as e:
+        logger.error(f"Error in error handler: {e}")
+
 def run_bot():
     config.BOT = Bot(config.TELEGRAM_BOT_TOKEN)
+    
+    # Add command handlers
+    config.BOT.app.add_handler(CommandHandler('start', start))
+    config.BOT.app.add_handler(CommandHandler('keyboard', show_keyboard))
+    
+    # Add conversation handler
     city_conv_handler = ConversationHandler(
         entry_points=[
-            CommandHandler('start', start),
             MessageHandler(filters.Regex('^🏙 Imposta Città$'), start_city_input),
         ],
         states={
             WAITING_FOR_CITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_city)],
         },
-        fallbacks=[MessageHandler(filters.ALL, handle_invalid_input)],
+        fallbacks=[
+            CommandHandler('start', start),
+            CommandHandler('keyboard', show_keyboard),
+            MessageHandler(filters.ALL, handle_invalid_input)
+        ],
     )
     config.BOT.app.add_handler(city_conv_handler)
+    
+    # Add error handler
+    config.BOT.app.add_error_handler(error_handler)
     scheduler = create_scheduler(config.BOT.bot)
     scheduler.start()
     config.BOT.app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 def main():
-    admin_thread = threading.Thread(target=run_admin_interface)
-    admin_thread.daemon = True
-    admin_thread.start()
+    if config.DEBUG:
+        # Use Flask development server in debug mode
+        admin_thread = threading.Thread(target=run_admin_interface)
+        admin_thread.daemon = True
+        admin_thread.start()
+    else:
+        # Use Gunicorn in production
+        admin_thread = threading.Thread(
+            target=lambda: os.system(
+                f'gunicorn --bind 0.0.0.0:{config.ADMIN_PORT} '
+                '--workers 2 --threads 4 --access-logfile - '
+                '--error-logfile - wsgi:application'
+            )
+        )
+        admin_thread.daemon = True
+        admin_thread.start()
+    
     run_bot()
 
 if __name__ == '__main__':
