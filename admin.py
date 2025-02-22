@@ -158,12 +158,16 @@ def notify_user(user_id):
 
         message = fetcher.check_matches_for_city(user.city)
         
+        if not db.can_send_manual_notification(user_id):
+            flash(f'Please wait at least 5 minutes between manual notifications for user {user_id}', 'error')
+            return redirect(url_for('index'))
+
         if message:
             config.BOT.send_message_sync(
                 chat_id=user_id,
                 text=message
             )
-            db.update_last_notification(user_id)
+            db.update_last_notification(user_id, is_manual=True)
             flash(f'Notification sent to user {user_id}', 'success')
         else:
             flash(f'No matches found for user {user_id} in {user.city}. Notification not sent.', 'info')
@@ -190,6 +194,10 @@ def test_notification(user_id):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
+        if not db.can_send_manual_notification(user_id):
+            flash(f'Please wait at least 5 minutes between manual notifications for user {user_id}', 'error')
+            return redirect(url_for('index'))
+
         matches = fetcher.get_matches_for_city(user.city)
         
         message = "🎯 Oggi nella tua città ci sono le seguenti partite:\n\n"
@@ -204,7 +212,7 @@ def test_notification(user_id):
             chat_id=user_id,
             text=message
         )
-        db.update_last_notification(user_id)
+        db.update_last_notification(user_id, is_manual=True)
         flash(f'Test notification sent to user {user_id}', 'success')
             
     except Exception as e:

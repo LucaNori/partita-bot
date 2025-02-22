@@ -18,6 +18,7 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     is_blocked = Column(Boolean, default=False)
     last_notification = Column(DateTime, nullable=True)
+    last_manual_notification = Column(DateTime, nullable=True)
 
 class AccessControl(Base):
     __tablename__ = 'access_control'
@@ -63,6 +64,9 @@ class Database:
         if "last_notification" not in user_columns:
             with self.engine.connect() as conn:
                 conn.execute(text("ALTER TABLE users ADD COLUMN last_notification DATETIME"))
+        if "last_manual_notification" not in user_columns:
+            with self.engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN last_manual_notification DATETIME"))
         
         if not inspector.has_table('scheduler_state'):
             SchedulerState.__table__.create(self.engine)
@@ -137,11 +141,28 @@ class Database:
                 mode='blocklist', telegram_id=telegram_id
             ).first())
 
-    def update_last_notification(self, telegram_id: int):
+    def update_last_notification(self, telegram_id: int, is_manual: bool = False):
         user = self.get_user(telegram_id)
         if user:
-            user.last_notification = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+            now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+            user.last_notification = now
+            if is_manual:
+                user.last_manual_notification = now
             self.session.commit()
+
+    def can_send_manual_notification(self, telegram_id: int, cooldown_minutes: int = 5) -> bool:
+        user = self.get_user(telegram_id)
+        if not user or not user.last_manual_notification:
+            return True
+            
+        now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        if user.last_manual_notification.tzinfo is None:
+            last_manual = user.last_manual_notification.replace(tzinfo=ZoneInfo("UTC"))
+        else:
+            last_manual = user.last_manual_notification
+            
+        time_since_last = now - last_manual
+        return time_since_last.total_seconds() >= cooldown_minutes * 60
             
     def format_last_notification(self, telegram_id: int) -> str:
         user = self.get_user(telegram_id)
