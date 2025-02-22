@@ -68,15 +68,25 @@ def toggle_access(user_id):
 @auth.login_required
 def cleanup_users():
     try:
-        results = db.remove_blocked_users(config.BOT)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         
-        if results['removed_users'] > 0:
-            flash(f"Removed {results['removed_users']} blocked users out of {results['total_users']} total users", 'success')
-        else:
-            flash(f"No blocked users found out of {results['total_users']} total users", 'info')
+        try:
+            results = loop.run_until_complete(db.remove_blocked_users(config.BOT))
             
-        if results['errors']:
-            flash(f"Encountered {len(results['errors'])} errors:\n" + "\n".join(results['errors']), 'error')
+            if results['removed_users'] > 0:
+                flash(f"Removed {results['removed_users']} blocked users out of {results['total_users']} total users", 'success')
+            else:
+                flash(f"No blocked users found out of {results['total_users']} total users", 'info')
+                
+            if results['errors']:
+                flash(f"Encountered {len(results['errors'])} errors:\n" + "\n".join(results['errors']), 'error')
+                
+        finally:
+            try:
+                loop.close()
+            except:
+                pass
             
     except Exception as e:
         flash(f'Error during cleanup: {str(e)}', 'error')

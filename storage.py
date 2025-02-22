@@ -166,7 +166,7 @@ class Database:
             return result.last_run
         return None
         
-    def remove_blocked_users(self, bot) -> dict:
+    async def remove_blocked_users(self, bot) -> dict:
         """Remove users who have blocked the bot. Returns statistics about the operation."""
         users = self.get_all_users()
         total = len(users)
@@ -175,10 +175,15 @@ class Database:
         
         for user in users:
             try:
-                # Try to send a silent message to check if user blocked the bot
-                bot.send_message_sync(
+                # Try to send and then delete a silent message to check if user blocked the bot
+                message = await bot.bot.send_message(
                     chat_id=user.telegram_id,
                     text="\u200b"  # Zero-width space, invisible message
+                )
+                # Immediately delete the message
+                await bot.bot.delete_message(
+                    chat_id=user.telegram_id,
+                    message_id=message.message_id
                 )
             except Exception as e:
                 error_str = str(e).lower()
