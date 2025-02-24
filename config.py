@@ -7,12 +7,9 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-# Convert DEBUG string to boolean
 DEBUG = os.getenv('DEBUG', 'false').lower() == 'true'
 
-# Load timezone (default to Europe/Rome)
 TIMEZONE = os.getenv('TIMEZONE', 'Europe/Rome')
-# If invalid timezone is specified, fallback to Europe/Rome
 try:
     TIMEZONE_INFO = ZoneInfo(TIMEZONE)
 except ZoneInfoNotFoundError:
@@ -26,9 +23,3 @@ ADMIN_PORT = int(os.getenv('ADMIN_PORT', '5000'))
 ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin')
 FLASK_SECRET_KEY = os.getenv('FLASK_SECRET_KEY', os.urandom(24))
-
-from telegram import Bot
-if TELEGRAM_BOT_TOKEN:
-    BOT = Bot(TELEGRAM_BOT_TOKEN)
-else:
-    BOT = None
