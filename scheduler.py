@@ -3,6 +3,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from storage import Database
 from fetcher import MatchFetcher
 from bot_manager import get_bot
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import config
 import logging
 
@@ -12,8 +13,12 @@ logger = logging.getLogger(__name__)
 scheduler_logger = logging.getLogger('apscheduler')
 scheduler_logger.setLevel(logging.DEBUG if config.DEBUG else logging.WARNING)
 
-# Use global timezone from config
-TIMEZONE = config.TIMEZONE_INFO
+# Initialize timezone
+try:
+    TIMEZONE = ZoneInfo(config.TIMEZONE)
+except ZoneInfoNotFoundError:
+    logger.warning(f"Invalid timezone: {config.TIMEZONE}. Falling back to Europe/Rome")
+    TIMEZONE = ZoneInfo('Europe/Rome')
 
 def create_scheduler():
     db = Database()
