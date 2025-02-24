@@ -6,11 +6,14 @@
 partita-bot/
 ├── admin.py           # Flask admin interface with auth and user management
 ├── bot.py            # Main bot implementation with async handlers
-├── config.py         # Configuration and environment variables
+├── bot_manager.py    # Singleton bot instance management
+├── config.py         # Environment variables configuration
+├── custom_bot.py     # Custom Bot class with sync message support
 ├── fetcher.py        # Match fetching and filtering logic
 ├── scheduler.py      # Notification scheduling with APScheduler
 ├── storage.py        # SQLAlchemy models and database operations
 ├── teams.yml         # Team to city mapping configuration
+├── wsgi.py           # WSGI application entry point
 ├── docker-compose.yml       # Production deployment configuration
 ├── docker-compose.local.yml # Local development configuration
 ├── static/                  # Static assets for admin interface
@@ -45,13 +48,23 @@ partita-bot/
 - Prevents duplicate notifications same day
 - Tracks last run time in database
 
-### Bot (bot.py)
+### Bot Architecture
+#### Bot Manager (bot_manager.py)
+- Manages singleton bot instance across application
+- Provides global access to bot instance
+- Ensures consistent bot state in all components
+
+#### Custom Bot (custom_bot.py)
+- Extends python-telegram-bot with sync capabilities
+- Implements send_message_sync for reliable notifications
+- Handles event loop management for sync operations
+
+#### Main Bot (bot.py)
 - Uses python-telegram-bot v20.7
 - Implements conversation flows for settings
-- Handles async operations with nest_asyncio
 - Manages user registration and preferences
 - Integrates scheduler for notifications
-- Proper event loop management
+- Initializes bot components and starts polling
 
 ### Admin Interface (admin.py)
 - Flask-based web interface
@@ -61,6 +74,11 @@ partita-bot/
 - User activity monitoring
 - Custom favicon and styling
 - Proper error handling and feedback
+
+### WSGI Application (wsgi.py)
+- Production entry point for Gunicorn
+- Ensures bot initialization before Flask app
+- Manages application lifecycle
 
 ## Development Setup
 

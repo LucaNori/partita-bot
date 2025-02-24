@@ -9,7 +9,6 @@ from datetime import datetime
 import pytz
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
-    Application,
     CommandHandler,
     MessageHandler,
     ContextTypes,
@@ -19,6 +18,7 @@ from telegram.ext import (
 from storage import Database
 from scheduler import create_scheduler
 from admin import run_admin_interface
+from bot_manager import get_bot
 import config
 import threading
 
@@ -37,39 +37,6 @@ httpx_logger.setLevel(logging.DEBUG if config.DEBUG else logging.WARNING)
 db = Database()
 
 WAITING_FOR_CITY = 1
-
-class Bot:
-    def __init__(self, token):
-        self.app = Application.builder().token(token).build()
-        self.bot = self.app.bot
-        self._loop = None
-
-    def send_message_sync(self, chat_id: int, text: str):
-        async def _send():
-            try:
-                await self.bot.send_message(chat_id=chat_id, text=text)
-                return True, None
-            except Exception as e:
-                logger.error(f"Error sending message to {chat_id}: {str(e)}")
-                return False, str(e)
-        
-        if self._loop is None:
-            self._loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._loop)
-        
-        try:
-            success, error = self._loop.run_until_complete(_send())
-            if not success:
-                raise Exception(error)
-        except RuntimeError as e:
-            if "Event loop is closed" in str(e):
-                self._loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(self._loop)
-                success, error = self._loop.run_until_complete(_send())
-                if not success:
-                    raise Exception(error)
-            else:
-                raise
 
 def get_main_keyboard():
     return ReplyKeyboardMarkup([
@@ -157,9 +124,11 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error in error handler: {e}")
 
 def run_bot():
+    bot_instance = get_bot(config.TELEGRAM_BOT_TOKEN)
+
     # Add command handlers
-    config.BOT.app.add_handler(CommandHandler('start', start))
-    config.BOT.app.add_handler(CommandHandler('keyboard', show_keyboard))
+    bot_instance.app.add_handler(CommandHandler('start', start))
+    bot_instance.app.add_handler(CommandHandler('keyboard', show_keyboard))
     
     # Add conversation handler
     city_conv_handler = ConversationHandler(
@@ -175,17 +144,17 @@ def run_bot():
             MessageHandler(filters.ALL, handle_invalid_input)
         ],
     )
-    config.BOT.app.add_handler(city_conv_handler)
+    bot_instance.app.add_handler(city_conv_handler)
     
     # Add error handler
-    config.BOT.app.add_error_handler(error_handler)
-    scheduler = create_scheduler(config.BOT.bot)
+    bot_instance.app.add_error_handler(error_handler)
+    scheduler = create_scheduler()
     scheduler.start()
-    config.BOT.app.run_polling(allowed_updates=Update.ALL_TYPES)
+    bot_instance.app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 def main():
     # Initialize bot first, before any threads
-    config.BOT = Bot(config.TELEGRAM_BOT_TOKEN)
+    bot_instance = get_bot(config.TELEGRAM_BOT_TOKEN)
     logger.info("Bot initialized")
     
     # Start admin interface in a thread

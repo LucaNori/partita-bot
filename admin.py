@@ -8,8 +8,12 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import asyncio
 import nest_asyncio
+from bot_manager import get_bot
 
 nest_asyncio.apply()
+
+# Initialize bot instance
+bot = get_bot(config.TELEGRAM_BOT_TOKEN)
 
 app = Flask(__name__)
 app.secret_key = config.FLASK_SECRET_KEY
@@ -72,7 +76,7 @@ def cleanup_users():
         asyncio.set_event_loop(loop)
         
         try:
-            results = loop.run_until_complete(db.remove_blocked_users(config.BOT))
+            results = loop.run_until_complete(db.remove_blocked_users(bot))
             
             if results['removed_users'] > 0:
                 flash(f"Removed {results['removed_users']} blocked users out of {results['total_users']} total users", 'success')
@@ -119,7 +123,7 @@ def notify_all():
                 
                 message = fetcher.check_matches_for_city(user.city)
                 if message:
-                    config.BOT.send_message_sync(
+                    bot.send_message_sync(
                         chat_id=user.telegram_id,
                         text=message
                     )
@@ -163,7 +167,7 @@ def notify_user(user_id):
             return redirect(url_for('index'))
 
         if message:
-            config.BOT.send_message_sync(
+            bot.send_message_sync(
                 chat_id=user_id,
                 text=message
             )
@@ -208,7 +212,7 @@ def test_notification(user_id):
         else:
             message += "⚽️ Test Match vs Test Team\n🕒 15:00 (CET)\n\n"
 
-        config.BOT.send_message_sync(
+        bot.send_message_sync(
             chat_id=user_id,
             text=message
         )

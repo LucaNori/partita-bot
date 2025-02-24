@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from storage import Database
 from fetcher import MatchFetcher
+from bot_manager import get_bot
 import config
 import logging
 
@@ -14,9 +15,10 @@ scheduler_logger.setLevel(logging.DEBUG if config.DEBUG else logging.WARNING)
 # Use global timezone from config
 TIMEZONE = config.TIMEZONE_INFO
 
-def create_scheduler(bot):
+def create_scheduler():
     db = Database()
     fetcher = MatchFetcher()
+    bot = get_bot(config.TELEGRAM_BOT_TOKEN)
     scheduler = BackgroundScheduler(
         timezone="UTC",
         job_defaults={
@@ -81,10 +83,10 @@ def create_scheduler(bot):
                     message = fetcher.check_matches_for_city(user.city)
                     if message:
                         try:
-                            # Test user is not blocked first with a silent message
-                            bot.send_message(chat_id=user.telegram_id, text="\u200b")
-                            # If that worked, send the actual message
-                            bot.send_message(chat_id=user.telegram_id, text=message)
+                            bot.send_message_sync(
+                                chat_id=user.telegram_id,
+                                text=message
+                            )
                             db.update_last_notification(user.telegram_id)
                             notifications_sent += 1
                             print(f"Notification sent to user {user.telegram_id}")
