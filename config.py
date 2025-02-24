@@ -27,4 +27,8 @@ ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin')
 FLASK_SECRET_KEY = os.getenv('FLASK_SECRET_KEY', os.urandom(24))
 
-BOT = None
+from telegram import Bot
+if TELEGRAM_BOT_TOKEN:
+    BOT = Bot(TELEGRAM_BOT_TOKEN)
+else:
+    BOT = None
