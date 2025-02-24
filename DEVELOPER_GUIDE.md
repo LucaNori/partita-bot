@@ -24,9 +24,11 @@ partita-bot/
 
 ### Database (storage.py)
 - SQLite database with SQLAlchemy ORM
-- Tables: users, access_control, and access_mode
+- Tables: users, access_control, access_mode, and scheduler_state
 - Handles user management and access control
-- Tracks notification timestamps for each user
+- Tracks both automated and manual notification timestamps
+- Supports notification rate limiting
+- Implements timezone-aware timestamps
 - Supports both whitelist and blocklist modes
 
 ### Match Fetcher (fetcher.py)
@@ -34,13 +36,14 @@ partita-bot/
 - Caches responses to minimize API calls
 - Maps teams to cities using teams.yml
 - Auto-cleans old cache files
+- Case-insensitive city matching
 
 ### Scheduler (scheduler.py)
 - Uses APScheduler for reliable job execution
 - Runs hourly checks for each user
-- Converts times to user's local timezone
-- Sends notifications at 7 AM user time
+- Sends notifications at 7 AM CET
 - Prevents duplicate notifications same day
+- Tracks last run time in database
 
 ### Bot (bot.py)
 - Uses python-telegram-bot v20.7
@@ -48,13 +51,16 @@ partita-bot/
 - Handles async operations with nest_asyncio
 - Manages user registration and preferences
 - Integrates scheduler for notifications
+- Proper event loop management
 
 ### Admin Interface (admin.py)
 - Flask-based web interface
 - User management with access control
-- Manual notification triggers
+- Manual notification triggers with rate limiting
+- Test notification support
 - User activity monitoring
 - Custom favicon and styling
+- Proper error handling and feedback
 
 ## Development Setup
 
@@ -115,17 +121,25 @@ partita-bot/
 ### Modifying Notification Times
 1. Edit scheduler.py
 2. Modify the hour check in send_morning_notifications
-3. Default is set to 7 AM local time
+3. Default is set to 7 AM CET
+
+### Manual Notifications
+1. Use admin interface "Notify" button
+2. Respects 5-minute cooldown between notifications
+3. Tracks manual notifications separately
+4. Prevents notification spam
 
 ### Testing Notifications
 1. Use admin interface "Test Notify" button
-2. Check logs for delivery status
-3. Verify timezone conversions
+2. Subject to same rate limiting as manual notifications
+3. Check logs for delivery status
+4. Verify notification timestamps
 
 ### Updating Database Schema
 1. Add new columns to model classes in storage.py
 2. Include upgrade logic in _upgrade_schema method
 3. Ensure backward compatibility
+4. Handle timezone-aware fields properly
 
 ### Adding Bot Commands
 1. Create command handler in bot.py
@@ -139,18 +153,21 @@ partita-bot/
 1. Check for multiple event loop instances
 2. Verify nest_asyncio is properly initialized
 3. Monitor send_message_sync operations
+4. Check loop cleanup in async functions
 
 ### Notification Issues
 1. Check scheduler logs for timing
-2. Verify user timezone settings
-3. Confirm match data is being fetched
-4. Check last_notification timestamps
+2. Verify notification timestamps
+3. Check rate limiting status
+4. Confirm match data is being fetched
+5. Verify timezone handling
 
 ### Database Issues
 1. Inspect bot.db in data directory
 2. Use SQLite browser for direct access
 3. Check column types and constraints
-4. Verify access control settings
+4. Verify timezone-aware fields
+5. Check notification timestamps
 
 ### Docker Issues
 1. Check container logs
@@ -163,7 +180,7 @@ partita-bot/
 1. Always use local Docker setup for testing
 2. Handle async operations carefully
 3. Use timezone-aware datetime objects
-4. Log meaningful debug information
+4. Implement proper rate limiting
 5. Maintain backward compatibility
 6. Document significant changes
 7. Keep error handling consistent
@@ -179,6 +196,7 @@ Required in .env file:
 - ADMIN_PORT: Port for admin interface
 - ADMIN_USERNAME: Admin login username
 - ADMIN_PASSWORD: Admin login password
+- FOOTBALL_API_TOKEN: Football data API token
 
 ### Docker Volumes
 - data/: Contains SQLite database
