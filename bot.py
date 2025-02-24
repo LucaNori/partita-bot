@@ -157,8 +157,6 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error in error handler: {e}")
 
 def run_bot():
-    config.BOT = Bot(config.TELEGRAM_BOT_TOKEN)
-    
     # Add command handlers
     config.BOT.app.add_handler(CommandHandler('start', start))
     config.BOT.app.add_handler(CommandHandler('keyboard', show_keyboard))
@@ -186,13 +184,17 @@ def run_bot():
     config.BOT.app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 def main():
+    # Initialize bot first, before any threads
+    config.BOT = Bot(config.TELEGRAM_BOT_TOKEN)
+    logger.info("Bot initialized")
+    
+    # Start admin interface in a thread
     if config.DEBUG:
-        # Use Flask development server in debug mode
         admin_thread = threading.Thread(target=run_admin_interface)
         admin_thread.daemon = True
         admin_thread.start()
+        logger.info("Admin interface started in debug mode")
     else:
-        # Use Gunicorn in production
         admin_thread = threading.Thread(
             target=lambda: os.system(
                 f'gunicorn --bind 0.0.0.0:{config.ADMIN_PORT} '
@@ -202,7 +204,9 @@ def main():
         )
         admin_thread.daemon = True
         admin_thread.start()
+        logger.info("Admin interface started with Gunicorn")
     
+    # Start bot polling after admin interface is ready
     run_bot()
 
 if __name__ == '__main__':
