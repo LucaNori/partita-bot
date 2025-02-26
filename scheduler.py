@@ -9,11 +9,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Configure scheduler logging based on DEBUG setting
 scheduler_logger = logging.getLogger('apscheduler')
 scheduler_logger.setLevel(logging.DEBUG if config.DEBUG else logging.WARNING)
 
-# Use timezone from config
 TIMEZONE = config.TIMEZONE_INFO
 
 def create_scheduler():
@@ -23,7 +21,7 @@ def create_scheduler():
     scheduler = BackgroundScheduler(
         timezone="UTC",
         job_defaults={
-            'misfire_grace_time': 15*60,  # 15 minutes grace time for misfired jobs
+            'misfire_grace_time': 15*60,
             'coalesce': True  # Combine multiple missed runs into a single run
         }
     )
@@ -32,17 +30,14 @@ def create_scheduler():
         """Calculate the next check interval based on current time"""
         current_utc = datetime.utcnow().replace(tzinfo=TIMEZONE)
         local_time = current_utc.astimezone(TIMEZONE)
-        
-        # If we're in the 8-10 AM window, check every 15 minutes
-        if 8 <= local_time.hour < 10:
-            return 15 * 60  # 15 minutes in seconds
-        
-        # Calculate time until 8 AM tomorrow
+
+        if config.NOTIFICATION_START_HOUR <= local_time.hour < config.NOTIFICATION_END_HOUR:
+            return 15 * 60
+
         tomorrow = local_time.date() + timedelta(days=1)
-        next_run = datetime.combine(tomorrow, datetime.min.time().replace(hour=8))
+        next_run = datetime.combine(tomorrow, datetime.min.time().replace(hour=config.NOTIFICATION_START_HOUR))
         next_run = next_run.replace(tzinfo=TIMEZONE)
-        
-        # Convert to seconds
+
         seconds_until_next = (next_run - local_time).total_seconds()
         return max(seconds_until_next, 15 * 60)  # Minimum 15 minutes
     
@@ -51,12 +46,10 @@ def create_scheduler():
         local_time = current_utc.astimezone(TIMEZONE)
         print(f"[{current_utc.isoformat()}] Checking notification conditions...")
         
-        # Check if we're in the 8-10 AM window
-        if not (8 <= local_time.hour < 10):
+        if not (config.NOTIFICATION_START_HOUR <= local_time.hour < config.NOTIFICATION_END_HOUR):
             print(f"Outside notification window (current time: {local_time.strftime('%H:%M')} {TIMEZONE})")
             return
-        
-        # Check if we already ran today
+
         last_run = db.get_scheduler_last_run()
         if last_run and last_run.date() == current_utc.date():
             print("Notifications already sent today")
@@ -69,7 +62,6 @@ def create_scheduler():
         
         for user in users:
             try:
-                # Check if user already received notification today
                 if user.last_notification:
                     last_notif = user.last_notification
                     if last_notif.tzinfo is None:
@@ -84,19 +76,18 @@ def create_scheduler():
                     message = fetcher.check_matches_for_city(user.city)
                     if message:
                         try:
-                            bot.send_message_sync(
-                                chat_id=user.telegram_id,
-                                text=message
-                            )
-                            db.update_last_notification(user.telegram_id)
-                            notifications_sent += 1
-                            print(f"Notification sent to user {user.telegram_id}")
-                        except Exception as send_error:
-                            error_str = str(send_error).lower()
-                            if "forbidden" in error_str and "blocked" in error_str:
-                                print(f"User {user.telegram_id} has blocked the bot")
+                            # Queue the message instead of sending it directly
+                            if db.queue_message(
+                                telegram_id=user.telegram_id,
+                                message=message
+                            ):
+                                db.update_last_notification(user.telegram_id)
+                                notifications_sent += 1
+                                print(f"Notification queued for user {user.telegram_id}")
                             else:
-                                print(f"Error sending message to user {user.telegram_id}: {str(send_error)}")
+                                print(f"Failed to queue notification for user {user.telegram_id}")
+                        except Exception as send_error:
+                            print(f"Error queueing message for user {user.telegram_id}: {str(send_error)}")
                     else:
                         no_matches += 1
                         print(f"No match found for user {user.telegram_id} in {user.city}")
@@ -114,8 +105,7 @@ def create_scheduler():
     def dynamic_schedule():
         """Run notifications and schedule next check"""
         check_and_send_notifications()
-        
-        # Schedule next run based on current time
+
         next_interval = calculate_next_interval()
         scheduler.add_job(
             dynamic_schedule,
@@ -125,8 +115,7 @@ def create_scheduler():
             replace_existing=True
         )
         print(f"Next check scheduled in {next_interval/3600:.1f} hours")
-    
-    # Initial schedule
+
     scheduler.add_job(dynamic_schedule, 'date', run_date=datetime.utcnow(), id='morning_notifications')
     
     class MatchScheduler:

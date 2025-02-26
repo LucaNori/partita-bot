@@ -12,13 +12,15 @@ from bot_manager import get_bot
 
 nest_asyncio.apply()
 
-# Initialize bot instance
-bot = get_bot(config.TELEGRAM_BOT_TOKEN)
-
 app = Flask(__name__)
 app.secret_key = config.FLASK_SECRET_KEY
 auth = HTTPBasicAuth()
 db = Database()
+
+# Use database to queue messages instead of directly sending them
+def send_message_via_db_queue(chat_id: int, text: str):
+    """Queue a message in the database to be sent by the bot process"""
+    return db.queue_message(telegram_id=chat_id, message=text)
 fetcher = MatchFetcher()
 
 users = {
@@ -72,26 +74,10 @@ def toggle_access(user_id):
 @auth.login_required
 def cleanup_users():
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        try:
-            results = loop.run_until_complete(db.remove_blocked_users(bot))
-            
-            if results['removed_users'] > 0:
-                flash(f"Removed {results['removed_users']} blocked users out of {results['total_users']} total users", 'success')
-            else:
-                flash(f"No blocked users found out of {results['total_users']} total users", 'info')
-                
-            if results['errors']:
-                flash(f"Encountered {len(results['errors'])} errors:\n" + "\n".join(results['errors']), 'error')
-                
-        finally:
-            try:
-                loop.close()
-            except:
-                pass
-            
+        # Queue a special admin operation in the database
+        # The bot will recognize this and perform the cleanup
+        db.queue_message(telegram_id=0, message="ADMIN_OPERATION:CLEANUP_USERS")
+        flash("User cleanup operation has been queued. Check back later for results.", 'info')
     except Exception as e:
         flash(f'Error during cleanup: {str(e)}', 'error')
     
@@ -123,7 +109,7 @@ def notify_all():
                 
                 message = fetcher.check_matches_for_city(user.city)
                 if message:
-                    bot.send_message_sync(
+                    send_message_via_db_queue(
                         chat_id=user.telegram_id,
                         text=message
                     )
@@ -167,7 +153,7 @@ def notify_user(user_id):
             return redirect(url_for('index'))
 
         if message:
-            bot.send_message_sync(
+            send_message_via_db_queue(
                 chat_id=user_id,
                 text=message
             )
@@ -212,7 +198,7 @@ def test_notification(user_id):
         else:
             message += "⚽️ Test Match vs Test Team\n🕒 15:00 (CET)\n\n"
 
-        bot.send_message_sync(
+        send_message_via_db_queue(
             chat_id=user_id,
             text=message
         )

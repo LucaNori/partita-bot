@@ -93,43 +93,60 @@ class MatchFetcher:
         return city.strip().lower()
 
     def _format_time(self, utc_time_str: str) -> dict:
+        """Convert UTC time string to local time and return formatted dict"""
+        # Convert ISO format to datetime object with proper timezone
         utc_time = datetime.fromisoformat(utc_time_str.replace('Z', '+00:00'))
+        # Convert to Italy timezone for display
         rome_time = utc_time.astimezone(ZoneInfo('Europe/Rome'))
+        
         return {
             'utc': utc_time.strftime('%H:%M'),
             'local': rome_time.strftime('%H:%M'),
             'datetime': rome_time
         }
 
-    def _is_match_today(self, match_datetime: datetime, rome_today: datetime) -> bool:
+    def _is_match_today(self, match_datetime: datetime, reference_date: datetime) -> bool:
+        """Check if match is on the same day as the reference date"""
         match_date = match_datetime.date()
-        return match_date == rome_today.date()
+        reference_date = reference_date.date()
+        return match_date == reference_date
 
     def _fetch_matches(self, target_date: datetime) -> dict:
+        """Fetch matches from API or cache for the given date"""
+        # Try loading from cache first
         cached_data = self._load_cached_data(target_date)
         if cached_data is not None:
+            logger.debug(f"Using cached data for {target_date.strftime('%Y-%m-%d')}")
             return cached_data
 
+        # Prepare date range (yesterday to tomorrow to catch overnight matches)
         yesterday = (target_date - timedelta(days=1)).strftime('%Y-%m-%d')
         tomorrow = (target_date + timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        # Get Italy area ID from config or use default
+        italy_area_id = self.teams_config.get('area_ids', {}).get('italy', 2114)
 
         try:
+            # Prepare API request
             url = f"{self.base_url}/matches"
             params = {
                 'dateFrom': yesterday,
                 'dateTo': tomorrow,
-                'areas': self.teams_config.get('area_ids', {}).get('italy', 2114)
+                'areas': italy_area_id
             }
             
-            logger.debug(f"Fetching matches for {target_date.strftime('%Y-%m-%d')}")
+            # Make the API request
+            logger.info(f"Fetching matches from API for {target_date.strftime('%Y-%m-%d')}")
             response = requests.get(url, headers=self.headers, params=params)
             response.raise_for_status()
             data = response.json()
 
+            # Check if we got any matches
             if not data.get('matches'):
-                logger.warning("API returned no matches")
+                logger.warning(f"API returned no matches for {target_date.strftime('%Y-%m-%d')}")
                 return None
 
+            # Cache the successful response
             self._save_to_cache(target_date, data)
             return data
 
@@ -137,36 +154,40 @@ class MatchFetcher:
             logger.error(f"API request failed: {str(e)}")
             return None
         except Exception as e:
-            logger.error(f"Error fetching matches: {str(e)}")
+            logger.error(f"Unexpected error fetching matches: {str(e)}", exc_info=True)
             return None
 
     def get_matches_for_city(self, city: str, target_date: datetime = None) -> list:
+        """Get matches for a specific city on the given date"""
         if target_date is None:
             target_date = datetime.now(ZoneInfo('Europe/Rome'))
 
-        # Normalize city name
         normalized_city = self._normalize_city(city)
         if not normalized_city:
-            logger.warning("Invalid city name provided")
+            logger.warning(f"Invalid city name provided: '{city}'")
             return []
 
         data = self._fetch_matches(target_date)
         if not data:
-            logger.warning("No match data available")
+            logger.warning(f"No match data available for {target_date.strftime('%Y-%m-%d')}")
             return []
 
         matches_by_city = {}
-        logger.debug(f"Looking for matches in {normalized_city} on {target_date.strftime('%Y-%m-%d')}")
-        
+        logger.info(f"Looking for matches in {normalized_city} on {target_date.strftime('%Y-%m-%d')}")
+
         for match in data.get('matches', []):
+
             if match.get('competition', {}).get('code') == 'SA':
+
                 times = self._format_time(match.get('utcDate'))
+                
                 if not self._is_match_today(times['datetime'], target_date):
                     continue
 
                 home_team = match.get('homeTeam', {})
                 away_team = match.get('awayTeam', {})
                 home_name = home_team.get('shortName')
+                
                 match_city = self._get_team_city(home_name)
                 
                 if match_city:
@@ -182,11 +203,14 @@ class MatchFetcher:
                     if match_city not in matches_by_city:
                         matches_by_city[match_city] = []
                     matches_by_city[match_city].append(match_info)
+                    logger.debug(f"Added match in {match_city}: {home_name} vs {away_team.get('shortName')}")
 
-        # Cities are already normalized to lowercase when stored
-        return matches_by_city.get(normalized_city, [])
+        matches = matches_by_city.get(normalized_city, [])
+        logger.info(f"Found {len(matches)} matches in {normalized_city}")
+        return matches
 
     def format_match_message(self, matches: list) -> str:
+        """Format matches into a human-readable message"""
         if not matches:
             return None
         
@@ -198,7 +222,11 @@ class MatchFetcher:
         return message.strip()
 
     def check_matches_for_city(self, city: str) -> str:
+        """Check for matches in a city and return formatted message"""
         matches = self.get_matches_for_city(city)
+
         message = self.format_match_message(matches)
+
         self._cleanup_old_cache_files()
+        
         return message

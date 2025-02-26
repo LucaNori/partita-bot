@@ -4,9 +4,22 @@ from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 import os
 import asyncio
+import logging
+import json
 from zoneinfo import ZoneInfo
 
 Base = declarative_base()
+
+# Table to store pending messages for the bot to send
+class MessageQueue(Base):
+    __tablename__ = 'message_queue'
+    
+    id = Column(Integer, primary_key=True)
+    telegram_id = Column(Integer, nullable=False)
+    message = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    sent = Column(Boolean, default=False)
+    sent_at = Column(DateTime, nullable=True)
 
 class User(Base):
     __tablename__ = 'users'
@@ -141,87 +154,144 @@ class Database:
                 mode='blocklist', telegram_id=telegram_id
             ).first())
 
+    def _get_utc_now(self) -> datetime:
+        """Get current UTC time with timezone info"""
+        return datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+        
+    def _ensure_timezone_aware(self, dt: datetime) -> datetime:
+        """Ensure datetime is timezone aware (UTC)"""
+        if dt is None:
+            return None
+        return dt if dt.tzinfo else dt.replace(tzinfo=ZoneInfo("UTC"))
+
     def update_last_notification(self, telegram_id: int, is_manual: bool = False):
+        """Update the last notification timestamp for a user"""
         user = self.get_user(telegram_id)
         if user:
-            now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+            now = self._get_utc_now()
             user.last_notification = now
             if is_manual:
                 user.last_manual_notification = now
             self.session.commit()
 
     def can_send_manual_notification(self, telegram_id: int, cooldown_minutes: int = 5) -> bool:
+        """Check if a manual notification can be sent based on cooldown time"""
         user = self.get_user(telegram_id)
         if not user or not user.last_manual_notification:
             return True
             
-        now = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-        if user.last_manual_notification.tzinfo is None:
-            last_manual = user.last_manual_notification.replace(tzinfo=ZoneInfo("UTC"))
-        else:
-            last_manual = user.last_manual_notification
-            
+        now = self._get_utc_now()
+        last_manual = self._ensure_timezone_aware(user.last_manual_notification)
         time_since_last = now - last_manual
+        
         return time_since_last.total_seconds() >= cooldown_minutes * 60
             
     def format_last_notification(self, telegram_id: int) -> str:
+        """Format the last notification time for display"""
         user = self.get_user(telegram_id)
         if user and user.last_notification:
-            rome_time = user.last_notification.astimezone(ZoneInfo('Europe/Rome'))
+            tz_aware = self._ensure_timezone_aware(user.last_notification)
+            rome_time = tz_aware.astimezone(ZoneInfo('Europe/Rome'))
             return rome_time.strftime('%Y-%m-%d %H:%M:%S')
         return 'Never'
 
     def update_scheduler_last_run(self):
+        """Update the last run time of the scheduler"""
         with self.engine.begin() as conn:
             conn.execute(
                 text("UPDATE scheduler_state SET last_run = :now WHERE id = 1"),
-                {"now": datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))}
+                {"now": self._get_utc_now()}
             )
 
     def get_scheduler_last_run(self) -> datetime:
+        """Get the last time the scheduler ran"""
         result = self.session.query(SchedulerState).first()
         if result and result.last_run:
-            if result.last_run.tzinfo is None:
-                return result.last_run.replace(tzinfo=ZoneInfo("UTC"))
-            return result.last_run
+            return self._ensure_timezone_aware(result.last_run)
         return None
+        
+    def queue_message(self, telegram_id: int, message: str) -> bool:
+        """Queue a message to be sent by the bot process"""
+        try:
+            queue_item = MessageQueue(
+                telegram_id=telegram_id,
+                message=message,
+                created_at=self._get_utc_now()
+            )
+            self.session.add(queue_item)
+            self.session.commit()
+            logger = logging.getLogger(__name__)
+            logger.info(f"Message queued for user {telegram_id}")
+            return True
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error queueing message: {str(e)}")
+            return False
+            
+    def get_pending_messages(self, limit: int = 10) -> list:
+        """Get pending messages to be sent"""
+        return self.session.query(MessageQueue)\
+            .filter(MessageQueue.sent == False)\
+            .order_by(MessageQueue.created_at)\
+            .limit(limit)\
+            .all()
+            
+    def mark_message_sent(self, message_id: int) -> bool:
+        """Mark a message as sent"""
+        try:
+            message = self.session.query(MessageQueue).get(message_id)
+            if message:
+                message.sent = True
+                message.sent_at = self._get_utc_now()
+                self.session.commit()
+                return True
+            return False
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error marking message as sent: {str(e)}")
+            return False
         
     async def remove_blocked_users(self, bot) -> dict:
         users = self.get_all_users()
         total = len(users)
         removed = 0
         errors = []
+        logger = logging.getLogger(__name__)
         
         for user in users:
+            user_id = user.telegram_id
+            logger.debug(f"Checking if user {user_id} has blocked the bot")
+            
             try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+                message = await bot.bot.send_message(
+                    chat_id=user_id,
+                    text="test message, please ignore",
+                    disable_notification=True
+                )
                 
-                try:
-                    message = await bot.bot.send_message(
-                        chat_id=user.telegram_id,
-                        text="test message, please ignore",
-                        disable_notification=True
-                    )
-                    await bot.bot.delete_message(
-                        chat_id=user.telegram_id,
-                        message_id=message.message_id
-                    )
-                finally:
-                    try:
-                        loop.close()
-                    except:
-                        pass
+                # Message sent successfully, user has not blocked the bot
+                await bot.bot.delete_message(
+                    chat_id=user_id,
+                    message_id=message.message_id
+                )
+                logger.debug(f"User {user_id} has not blocked the bot")
+                
             except Exception as e:
                 error_str = str(e).lower()
+                
+                # Check if user has blocked the bot
                 if "forbidden" in error_str and "blocked" in error_str:
+                    logger.info(f"Removing user {user_id} who blocked the bot")
                     self.session.delete(user)
                     removed += 1
                 else:
-                    errors.append(f"User {user.telegram_id}: {str(e)}")
+                    logger.warning(f"Error checking user {user_id}: {str(e)}")
+                    errors.append(f"User {user_id}: {str(e)}")
         
+        # Commit changes if any users were removed
         if removed > 0:
             self.session.commit()
+            logger.info(f"Removed {removed} users who blocked the bot")
             
         return {
             "total_users": total,
